@@ -1,0 +1,38 @@
+@import "tailwindcss";
+/* @tailwind base;
+@tailwind components;
+@tailwind utilities; */
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  scrollbar-width: none;
+}
+
+/* Adicione este código ao final do seu arquivo src/index.css */
+
+/* Para navegadores baseados em WebKit (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px; /* Largura da barra */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #2d3748; /* Cor do trilho (fundo) - corresponde a gray-800 */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #e53e3e; /* Cor do polegar (barra móvel) - corresponde a red-600 */
+  border-radius: 20px; /* Borda arredondada */
+  border: 2px solid #2d3748; /* Cria um "espaçamento" ao redor do polegar */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #c53030; /* Cor do polegar ao passar o mouse - corresponde a red-700 */
+}
+
+/* Para Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #e53e3e #2d3748; /* Cor do polegar e cor do trilho */
+}
