@@ -117,7 +117,7 @@ export default function MovieModal({ movie, onClose }: Props) {
                 <button
                   key={index}
                   onClick={() => setCurrentImage(index)}
-                  className={`w-2 h-2 rounded-full transition-colors ${
+                  className={`cursor-pointer w-2 h-2 rounded-full transition-colors ${
                     currentImage === index ? "bg-primary" : "bg-foreground/30 hover:bg-foreground/50"
                   }`}
                 />
@@ -130,7 +130,7 @@ export default function MovieModal({ movie, onClose }: Props) {
         <div className="w-full md:w-1/2 p-6 overflow-y-auto custom-scrollbar max-h-[50vh] md:max-h-[90vh]">
           {/* Close button */}
           <button
-            className="absolute top-4 right-4 p-2 rounded-full bg-secondary/50 hover:bg-destructive text-foreground hover:text-destructive-foreground transition-colors z-10"
+            className="cursor-pointer absolute top-4 right-4 p-2 rounded-full bg-secondary/50 hover:bg-destructive text-foreground hover:text-destructive-foreground transition-colors z-10"
             onClick={onClose}
           >
             <X className="w-5 h-5" />
@@ -162,7 +162,7 @@ export default function MovieModal({ movie, onClose }: Props) {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                className={`cursor-pointer flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                   tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -251,7 +251,7 @@ export default function MovieModal({ movie, onClose }: Props) {
                                       key={provider.provider_id}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="transition-transform hover:scale-110"
+                                      className="transition-transform hover:scale-110 cursor-pointer"
                                     >
                                       <img
                                         src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}

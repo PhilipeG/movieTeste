@@ -217,7 +217,7 @@ export default function Home() {
         <header className="flex flex-col items-center w-full mb-12">
           <button
             onClick={displayPopularMovies}
-            className="group flex items-center gap-3 mb-8 transition-transform hover:scale-105"
+            className="cursor-pointer group flex items-center gap-3 mb-8 transition-transform hover:scale-105"
           >
             <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 group-hover:bg-primary/20 transition-colors">
               <Film className="w-8 h-8 text-primary" />
@@ -241,7 +241,7 @@ export default function Home() {
               />
               <button
                 onClick={handleSearch}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+                className="cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium transition-colors"
               >
                 Buscar
               </button>
@@ -249,7 +249,7 @@ export default function Home() {
 
             {/* Menu dropdown */}
             <Menu as="div" className="relative">
-              <Menu.Button className="p-3 glass rounded-xl hover:bg-secondary/50 transition-colors">
+              <Menu.Button className="cursor-pointer p-3 glass rounded-xl hover:bg-secondary/50 transition-colors">
                 <MenuIcon className="w-5 h-5 text-foreground" />
               </Menu.Button>
               <Transition
@@ -269,7 +269,7 @@ export default function Home() {
                           onClick={displayFavoriteMovies}
                           className={`${
                             active ? "bg-secondary/50" : ""
-                          } flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
+                          } cursor-pointer flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
                         >
                           <Heart className="w-4 h-4 text-primary" />
                           Favoritos
@@ -287,7 +287,7 @@ export default function Home() {
                           onClick={displaySeenMovies}
                           className={`${
                             active ? "bg-secondary/50" : ""
-                          } flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
+                          } cursor-pointer flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
                         >
                           <Eye className="w-4 h-4 text-primary" />
                           Já Assistidos

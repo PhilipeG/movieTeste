@@ -73,7 +73,7 @@ export default function MovieCard({
                   e.stopPropagation()
                   onMarkAsSeen(movie.id)
                 }}
-                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-lg bg-primary/80 hover:bg-primary text-primary-foreground backdrop-blur-sm transition-colors"
+                className="cursor-pointer flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-lg bg-primary/80 hover:bg-primary text-primary-foreground backdrop-blur-sm transition-colors"
               >
                 <Check className="w-3.5 h-3.5" />
                 Visto
@@ -85,7 +85,7 @@ export default function MovieCard({
                   e.stopPropagation()
                   onFavorite(movie.id)
                 }}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-lg backdrop-blur-sm transition-colors ${
+                className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-lg backdrop-blur-sm transition-colors ${
                   isFavorite
                     ? "bg-primary/80 hover:bg-primary text-primary-foreground"
                     : "bg-secondary/80 hover:bg-secondary text-foreground"
@@ -107,16 +107,16 @@ export default function MovieCard({
             if (onRemoveFromFavorites) onRemoveFromFavorites(movie.id)
             if (onRemoveFromSeen) onRemoveFromSeen(movie.id)
           }}
-          className="absolute top-2 right-2 z-20 p-1.5 rounded-full bg-background/80 text-foreground opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-destructive hover:text-destructive-foreground backdrop-blur-sm"
+          className="cursor-pointer absolute top-2 right-2 z-20 p-1.5 rounded-full bg-background/80 text-foreground opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-destructive hover:text-destructive-foreground backdrop-blur-sm"
           title={onRemoveFromFavorites ? "Remover dos Favoritos" : "Remover dos Vistos"}
         >
           {onRemoveFromFavorites ? <X className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
         </button>
       )}
 
-      {/* Rank badge */}
+{/* Rank badge - ALTERADO AQUI */}
       {rank && (
-        <div className="absolute top-0 left-0 bg-primary text-primary-foreground text-sm font-bold w-8 h-8 flex items-center justify-center rounded-br-xl z-10">
+        <div className="absolute top-0 left-0 bg-primary/70 backdrop-blur-sm text-primary-foreground text-sm font-bold w-8 h-8 flex items-center justify-center rounded-br-xl z-10">
           {rank}
         </div>
       )}
