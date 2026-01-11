@@ -7,12 +7,22 @@ import { getSharedLists, updateFavoritesList, updateSeenList } from "@/lib/fireb
 import type { Movie, Genre } from "@/lib/tmdb"
 import MovieCard from "@/components/movie-card"
 import MovieModal from "@/components/movie-modal"
-import Roulette from "@/components/roulette"
+import dynamic from "next/dynamic"
 import { SortableMovieCard } from "@/components/sortable-movie-card"
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { arrayMove, SortableContext, rectSortingStrategy } from "@dnd-kit/sortable"
 import { Search, MenuIcon, Film, Heart, Eye, Sparkles, Trophy } from "lucide-react"
 import { Toaster, toast } from "sonner"
+
+
+const Roulette = dynamic(() => import("@/components/roulette"), { 
+  ssr: false,
+  loading: () => (
+    <div className="flex justify-center py-20">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    </div>
+  )
+})
 
 export default function Home() {
   const [movies, setMovies] = useState<Movie[]>([])
@@ -20,6 +30,7 @@ export default function Home() {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
   const [loading, setLoading] = useState(true)
   const [genres, setGenres] = useState<Genre[]>([])
+  
 
   const [favorites, setFavorites] = useState<number[]>([])
   const [seenMovies, setSeenMovies] = useState<number[]>([])
