@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { Movie } from "@/lib/tmdb"
-import { Heart, Check, X, Trash2, Star } from "lucide-react"
+import { Heart, Check, X, Trash2, Star, Plus } from "lucide-react"
 
 interface Props {
   movie: Movie
@@ -10,6 +10,7 @@ interface Props {
   onMarkAsSeen?: (id: number) => void
   onRemoveFromFavorites?: (id: number) => void
   onRemoveFromSeen?: (id: number) => void
+  onAddToRoulette?: (movie: Movie) => void
   isFavorite: boolean
   onClick: () => void
   rank?: number
@@ -24,6 +25,7 @@ export default function MovieCard({
   onMarkAsSeen,
   onRemoveFromFavorites,
   onRemoveFromSeen,
+  onAddToRoulette,
 }: Props) {
   const [isImageLoaded, setIsImageLoaded] = useState(false)
 
@@ -99,7 +101,7 @@ export default function MovieCard({
         </div>
       </div>
 
-      {/* Remove button (favorites/seen) */}
+      {/* Remove button (favorites/seen) - Top Right */}
       {(onRemoveFromFavorites || onRemoveFromSeen) && (
         <button
           onClick={(e) => {
@@ -114,9 +116,23 @@ export default function MovieCard({
         </button>
       )}
 
+      {/* Add to Roulette button - Below Remove button */}
+      {onAddToRoulette && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddToRoulette(movie)
+          }}
+          className="cursor-pointer absolute top-10 right-2 z-20 p-1.5 rounded-full bg-background/80 text-foreground opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-blue-600 hover:text-white backdrop-blur-sm"
+          title="Adicionar à Roleta"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      )}
+
 {/* Rank badge - ALTERADO AQUI */}
       {rank && (
-        <div className="absolute top-0 left-0 bg-primary/70 backdrop-blur-sm text-primary-foreground text-sm font-bold w-8 h-8 flex items-center justify-center rounded-br-xl z-10">
+        <div className="absolute top-0 left-0 bg-primary/50 backdrop-blur-sm text-primary-foreground text-sm font-bold w-8 h-8 flex items-center justify-center rounded-br-xl z-10">
           {rank}
         </div>
       )}

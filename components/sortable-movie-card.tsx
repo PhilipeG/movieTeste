@@ -10,6 +10,8 @@ interface Props {
   rank?: number
   onMarkAsSeen?: (id: number) => void
   onRemoveFromFavorites?: (id: number) => void
+  // ADICIONADO: A propriedade opcional para a roleta
+  onAddToRoulette?: (movie: Movie) => void
   isFavorite: boolean
   onClick: () => void
 }
@@ -32,6 +34,7 @@ export function SortableMovieCard(props: Props) {
       {...listeners}
       className={isDragging ? "cursor-grabbing" : "cursor-grab"}
     >
+      {/* O {...props} repassa automaticamente o onAddToRoulette para o MovieCard */}
       <MovieCard {...props} />
     </div>
   )

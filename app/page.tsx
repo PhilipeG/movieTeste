@@ -7,10 +7,12 @@ import { getSharedLists, updateFavoritesList, updateSeenList } from "@/lib/fireb
 import type { Movie, Genre } from "@/lib/tmdb"
 import MovieCard from "@/components/movie-card"
 import MovieModal from "@/components/movie-modal"
+import Roulette from "@/components/roulette"
 import { SortableMovieCard } from "@/components/sortable-movie-card"
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { arrayMove, SortableContext, rectSortingStrategy } from "@dnd-kit/sortable"
-import { Search, MenuIcon, Film, Heart, Eye, Sparkles } from "lucide-react"
+import { Search, MenuIcon, Film, Heart, Eye, Sparkles, Trophy } from "lucide-react"
+import { Toaster, toast } from "sonner"
 
 export default function Home() {
   const [movies, setMovies] = useState<Movie[]>([])
@@ -21,20 +23,15 @@ export default function Home() {
 
   const [favorites, setFavorites] = useState<number[]>([])
   const [seenMovies, setSeenMovies] = useState<number[]>([])
+  const [rouletteMovies, setRouletteMovies] = useState<Movie[]>([])
   const [currentView, setCurrentView] = useState("popular")
 
-  useEffect(() => {
-    const savedView = localStorage.getItem("dashmovie-view") || "popular"
-    setCurrentView(savedView)
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem("dashmovie-view", currentView)
-  }, [currentView])
+  // --- Funções de Carregamento (Atualizadas com persistência) ---
 
   const displayPopularMovies = async () => {
     setLoading(true)
     setCurrentView("popular")
+    localStorage.setItem("dashmovie-view", "popular") // Salva a preferência
     try {
       const movieData = await getPopularMovies()
       setMovies(movieData)
@@ -49,6 +46,7 @@ export default function Home() {
   const displayFavoriteMovies = async () => {
     setLoading(true)
     setCurrentView("favorites")
+    localStorage.setItem("dashmovie-view", "favorites") // Salva a preferência
     try {
       if (favorites.length === 0) {
         setMovies([])
@@ -67,6 +65,7 @@ export default function Home() {
   const displaySeenMovies = async () => {
     setLoading(true)
     setCurrentView("seen")
+    localStorage.setItem("dashmovie-view", "seen") // Salva a preferência
     try {
       if (seenMovies.length === 0) {
         setMovies([])
@@ -82,6 +81,13 @@ export default function Home() {
     }
   }
 
+  const displayRoulette = () => {
+    setCurrentView("roulette")
+    localStorage.setItem("dashmovie-view", "roulette") // Salva a preferência
+  }
+
+  // --- Carregamento Inicial ---
+
   useEffect(() => {
     async function loadInitialData() {
       setLoading(true)
@@ -92,8 +98,11 @@ export default function Home() {
 
         await getGenres().then(setGenres)
 
+        // Recupera a view salva e define o estado CORRETAMENTE
         const savedView = localStorage.getItem("dashmovie-view") || "popular"
+        
         if (savedView === "favorites") {
+          setCurrentView("favorites")
           if (initialFavorites.length > 0) {
             const favoriteMoviesData = await Promise.all(initialFavorites.map((id: number) => getMovieById(id)))
             setMovies(favoriteMoviesData)
@@ -101,13 +110,17 @@ export default function Home() {
             setMovies([])
           }
         } else if (savedView === "seen") {
+          setCurrentView("seen")
           if (initialSeen.length > 0) {
             const seenMoviesData = await Promise.all(initialSeen.map((id: number) => getMovieById(id)))
             setMovies(seenMoviesData)
           } else {
             setMovies([])
           }
+        } else if (savedView === "roulette") {
+          setCurrentView("roulette")
         } else {
+          // Fallback para popular (cobre casos de 'popular' ou 'search' salvo)
           await displayPopularMovies()
         }
       } catch (error) {
@@ -117,7 +130,9 @@ export default function Home() {
       }
     }
     loadInitialData()
-  }, [])
+  }, []) // Executa apenas uma vez na montagem
+
+  // --- Funções de Ação ---
 
   const markAsSeen = (movieId: number) => {
     const newFavorites = favorites.filter((id) => id !== movieId)
@@ -150,6 +165,19 @@ export default function Home() {
     updateFavoritesList(newFavorites)
   }
 
+  const addToRoulette = (movie: Movie) => {
+    if (rouletteMovies.find((m) => m.id === movie.id)) {
+      toast.error("Filme já está na roleta!")
+      return
+    }
+    setRouletteMovies((prev) => [...prev, movie])
+    toast.success("Adicionado à roleta!")
+  }
+
+  const removeFromRoulette = (id: number) => {
+    setRouletteMovies((prev) => prev.filter((m) => m.id !== id))
+  }
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }))
 
   function handleDragEnd(event: any) {
@@ -171,6 +199,7 @@ export default function Home() {
   const handleSearch = async () => {
     setLoading(true)
     setCurrentView("search")
+    // Não salvamos "search" no localStorage para evitar recarregar em uma busca vazia
     try {
       const results = search.trim() ? await searchMovies(search) : await getPopularMovies()
       setMovies(results)
@@ -190,6 +219,8 @@ export default function Home() {
         return "Já Assistidos"
       case "search":
         return "Resultados da Busca"
+      case "roulette":
+        return "Roleta da Sorte"
       default:
         return "Em Alta"
     }
@@ -201,6 +232,8 @@ export default function Home() {
         return <Heart className="w-5 h-5 text-primary" />
       case "seen":
         return <Eye className="w-5 h-5 text-primary" />
+      case "roulette":
+        return <Trophy className="w-5 h-5 text-primary" />
       default:
         return <Sparkles className="w-5 h-5 text-primary" />
     }
@@ -208,6 +241,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
+      <Toaster position="bottom-right" theme="dark" />
       {/* Background gradient */}
       <div className="fixed inset-0 bg-gradient-to-br from-background via-background to-secondary/30 -z-10" />
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent -z-10" />
@@ -299,6 +333,24 @@ export default function Home() {
                         </button>
                       )}
                     </MenuItem>
+                    <MenuItem>
+                      {({ active }) => (
+                        <button
+                          onClick={displayRoulette}
+                          className={`${
+                            active ? "bg-secondary/50" : ""
+                          } cursor-pointer flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
+                        >
+                          <Trophy className="w-4 h-4 text-primary" />
+                          Roleta
+                          {rouletteMovies.length > 0 && (
+                            <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                              {rouletteMovies.length}
+                            </span>
+                          )}
+                        </button>
+                      )}
+                    </MenuItem>
                     <div className="my-2 border-t border-border" />
                     <div className="px-4 py-2">
                       <p className="text-xs text-muted-foreground font-medium mb-2">Gêneros</p>
@@ -321,11 +373,17 @@ export default function Home() {
         <div className="flex items-center gap-3 mb-6">
           {getViewIcon()}
           <h2 className="text-xl font-semibold text-foreground">{getViewTitle()}</h2>
-          <span className="text-sm text-muted-foreground">({movies.length} filmes)</span>
+          {currentView !== "roulette" && <span className="text-sm text-muted-foreground">({movies.length} filmes)</span>}
         </div>
 
         {/* Content */}
-        {loading ? (
+        {currentView === "roulette" ? (
+          <Roulette
+            movies={rouletteMovies}
+            onSpinEnd={(movie) => setSelectedMovie(movie)}
+            onRemoveMovie={removeFromRoulette}
+          />
+        ) : loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {Array.from({ length: 18 }).map((_, i) => (
               <div key={i} className="aspect-[2/3] rounded-xl bg-card animate-pulse" />
@@ -349,6 +407,7 @@ export default function Home() {
                         movie={movie}
                         onMarkAsSeen={markAsSeen}
                         onRemoveFromFavorites={removeFromFavorites}
+                        onAddToRoulette={addToRoulette}
                         isFavorite={isFavorited}
                         onClick={() => setSelectedMovie(movie)}
                       />

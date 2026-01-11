@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { getMovieImages, getMovieCertification, getMovieDetails } from "@/app/actions/tmdb"
 import type { Movie, MovieDetails, Genre, CastMember, WatchProvider } from "@/lib/tmdb"
-import { X, Star, Clock, Calendar, Users, Tv } from "lucide-react"
+// ADICIONADO: ChevronLeft e ChevronRight
+import { X, Star, Clock, Calendar, Users, Tv, ChevronLeft, ChevronRight } from "lucide-react"
 
 function formatRuntime(minutes: number) {
   const hours = Math.floor(minutes / 60)
@@ -82,6 +83,15 @@ export default function MovieModal({ movie, onClose }: Props) {
     return () => document.removeEventListener("keydown", handleEsc)
   }, [onClose])
 
+  // ADICIONADO: Funções de navegação
+  const nextImage = () => {
+    setCurrentImage((prev) => (prev === images.length - 1 ? 0 : prev + 1))
+  }
+
+  const prevImage = () => {
+    setCurrentImage((prev) => (prev === 0 ? images.length - 1 : prev - 1))
+  }
+
   if (!movie) return null
 
   return (
@@ -92,7 +102,7 @@ export default function MovieModal({ movie, onClose }: Props) {
       {/* Modal */}
       <div className="relative glass rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden z-10 flex flex-col md:flex-row">
         {/* Image section */}
-        <div className="w-full md:w-1/2 relative flex items-center justify-center bg-secondary/30 min-h-[300px] md:min-h-[500px]">
+        <div className="w-full md:w-1/2 relative flex items-center justify-center bg-secondary/30 min-h-[300px] md:min-h-[500px] group/image">
           {images.length > 0 ? (
             <>
               {!isPosterLoaded && <div className="absolute inset-0 w-full h-full bg-secondary animate-pulse" />}
@@ -110,19 +120,30 @@ export default function MovieModal({ movie, onClose }: Props) {
             <div className="w-full h-full bg-secondary animate-pulse" />
           )}
 
-          {/* Image pagination */}
+          {/* ALTERADO: Setas de navegação (substituindo as bolinhas) */}
           {images.length > 1 && (
-            <div className="absolute bottom-4 flex gap-2">
-              {images.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentImage(index)}
-                  className={`cursor-pointer w-2 h-2 rounded-full transition-colors ${
-                    currentImage === index ? "bg-primary" : "bg-foreground/30 hover:bg-foreground/50"
-                  }`}
-                />
-              ))}
-            </div>
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  prevImage()
+                }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-all opacity-0 group-hover/image:opacity-100 cursor-pointer z-10"
+                aria-label="Imagem anterior"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  nextImage()
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-all opacity-0 group-hover/image:opacity-100 cursor-pointer z-10"
+                aria-label="Próxima imagem"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </>
           )}
         </div>
 
