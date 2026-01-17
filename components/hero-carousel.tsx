@@ -19,7 +19,7 @@ export default function HeroCarousel({ movies, onSelect }: Props) {
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % movies.length)
-    }, 10000)
+    }, 3000)
 
     return () => clearInterval(interval)
   }, [movies.length, isHovering])
