@@ -34,7 +34,7 @@ export async function getMovieImages(id: number) {
 
 export async function getMovieDetails(id: number): Promise<MovieDetails> {
   return fetchTMDB<MovieDetails>(`/movie/${id}`, {
-    append_to_response: "credits,watch/providers",
+    append_to_response: "credits,watch/providers,videos",
   })
 }
 
@@ -77,3 +77,10 @@ export async function getMovieCertification(id: number): Promise<string> {
     return "L"
   }
 }
+
+export async function getMoviesByGenre(genreId: number): Promise<Movie[]> {
+  const data = await fetchTMDB<{ results: Movie[] }>("/discover/movie", {
+    with_genres: genreId.toString(),
+  })
+  return data.results.slice(0, 18)
+  }

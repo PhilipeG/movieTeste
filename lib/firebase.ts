@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app"
-import { getFirestore, doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "firebase/firestore"
 
 const firebaseConfig = {
   apiKey: "AIzaSyDC9yplwbk0jQI65AGT62XUqVOXxLZ8T78",
@@ -14,6 +14,13 @@ const app = initializeApp(firebaseConfig)
 export const db = getFirestore(app)
 
 const sharedListDocRef = doc(db, "sharedLists", "mainList")
+
+export interface RatingsMap {
+  [movieId: number]: {
+    anak?: number
+    silvio?: number
+  }
+}
 
 export async function getSharedLists(): Promise<{
   favorites: number[]
@@ -43,4 +50,34 @@ export async function updateSeenList(newSeenMovies: number[]) {
   await updateDoc(sharedListDocRef, {
     seen: newSeenMovies,
   })
+}
+
+export async function getRatings(): Promise<RatingsMap> {
+  const docSnap = await getDoc(sharedListDocRef)
+  if (docSnap.exists()) {
+    return docSnap.data().ratings || {}
+  }
+  return {}
+}
+
+export async function updateMovieRating(movieId: number, person: "anak" | "silvio", rating: number) {
+  //pega as notas atuais
+  const currentRatings = await getRatings()
+
+  //atualiza a nota específica
+  const movieRatings = currentRatings[movieId] || {}
+  const newRatings = {
+    ...currentRatings,
+    [movieId]: {
+      ...movieRatings,
+      [person]: rating,
+    },
+  }
+
+  //salva no banco
+  await updateDoc(sharedListDocRef, {
+    ratings: newRatings,
+  })
+  
+  return newRatings
 }

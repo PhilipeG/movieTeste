@@ -1,48 +1,74 @@
 "use client"
 
 import { useEffect, useState, Fragment } from "react"
+import dynamic from "next/dynamic"
 import { Menu, Transition, MenuItems, MenuItem } from "@headlessui/react"
-import { getPopularMovies, searchMovies, getGenres, getMovieById } from "@/app/actions/tmdb"
-import { getSharedLists, updateFavoritesList, updateSeenList } from "@/lib/firebase"
+import { getPopularMovies, searchMovies, getGenres, getMovieById, getMoviesByGenre, getMovieDetails } from "@/app/actions/tmdb"
+import { getSharedLists, updateFavoritesList, updateSeenList, getRatings, updateMovieRating } from "@/lib/firebase"
+import type { RatingsMap } from "@/lib/firebase"
 import type { Movie, Genre } from "@/lib/tmdb"
 import MovieCard from "@/components/movie-card"
 import MovieModal from "@/components/movie-modal"
-import dynamic from "next/dynamic"
+import StatsModal from "@/components/stats-modal"
 import { SortableMovieCard } from "@/components/sortable-movie-card"
+import HeroCarousel from "@/components/hero-carousel"
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { arrayMove, SortableContext, rectSortingStrategy } from "@dnd-kit/sortable"
-import { Search, MenuIcon, Film, Heart, Eye, Sparkles, Trophy } from "lucide-react"
+import { Search, MenuIcon, Film, Heart, Eye, Sparkles, Trophy, ChevronLeft, ChevronRight, BarChart2 } from "lucide-react"
 import { Toaster, toast } from "sonner"
 
-
-const Roulette = dynamic(() => import("@/components/roulette"), { 
+const Roulette = dynamic(() => import("@/components/roulette"), {
   ssr: false,
   loading: () => (
     <div className="flex justify-center py-20">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
     </div>
-  )
+  ),
 })
 
 export default function Home() {
+  // --- Estados Principais ---
   const [movies, setMovies] = useState<Movie[]>([])
   const [search, setSearch] = useState("")
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
   const [loading, setLoading] = useState(true)
   const [genres, setGenres] = useState<Genre[]>([])
   
+  // --- Estados de Paginação dos Gêneros ---
+  const [genrePage, setGenrePage] = useState(0)
+  const ITEMS_PER_PAGE = 4
 
+  // --- Estados de Listas e Firebase ---
   const [favorites, setFavorites] = useState<number[]>([])
   const [seenMovies, setSeenMovies] = useState<number[]>([])
   const [rouletteMovies, setRouletteMovies] = useState<Movie[]>([])
+  const [bannerMovies, setBannerMovies] = useState<Movie[]>([])
+  
+  // --- Estados de Notas e Estatísticas ---
+  const [ratings, setRatings] = useState<RatingsMap>({})
+  const [showStats, setShowStats] = useState(false)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [seenMoviesDetails, setSeenMoviesDetails] = useState<any[]>([]) 
+
+  // --- Controle de Visualização ---
   const [currentView, setCurrentView] = useState("popular")
+  const [currentGenreName, setCurrentGenreName] = useState("")
 
-  // --- Funções de Carregamento (Atualizadas com persistência) ---
+  // --- Navegação dos Gêneros ---
+  const handlePrevGenrePage = () => {
+    setGenrePage((prev) => (prev > 0 ? prev - 1 : prev))
+  }
 
+  const handleNextGenrePage = () => {
+    const totalPages = Math.ceil(genres.length / ITEMS_PER_PAGE)
+    setGenrePage((prev) => (prev < totalPages - 1 ? prev + 1 : prev))
+  }
+
+  // --- Funções de Carregamento de Filmes ---
   const displayPopularMovies = async () => {
     setLoading(true)
     setCurrentView("popular")
-    localStorage.setItem("dashmovie-view", "popular") // Salva a preferência
+    localStorage.setItem("dashmovie-view", "popular")
     try {
       const movieData = await getPopularMovies()
       setMovies(movieData)
@@ -57,7 +83,7 @@ export default function Home() {
   const displayFavoriteMovies = async () => {
     setLoading(true)
     setCurrentView("favorites")
-    localStorage.setItem("dashmovie-view", "favorites") // Salva a preferência
+    localStorage.setItem("dashmovie-view", "favorites")
     try {
       if (favorites.length === 0) {
         setMovies([])
@@ -76,7 +102,7 @@ export default function Home() {
   const displaySeenMovies = async () => {
     setLoading(true)
     setCurrentView("seen")
-    localStorage.setItem("dashmovie-view", "seen") // Salva a preferência
+    localStorage.setItem("dashmovie-view", "seen")
     try {
       if (seenMovies.length === 0) {
         setMovies([])
@@ -94,22 +120,54 @@ export default function Home() {
 
   const displayRoulette = () => {
     setCurrentView("roulette")
-    localStorage.setItem("dashmovie-view", "roulette") // Salva a preferência
+    localStorage.setItem("dashmovie-view", "roulette")
   }
 
-  // --- Carregamento Inicial ---
+  const displayMoviesByGenre = async (genreId: number, genreName: string) => {
+    setLoading(true)
+    setCurrentView("genre")
+    setCurrentGenreName(genreName)
+    try {
+      const results = await getMoviesByGenre(genreId)
+      setMovies(results)
+      toast.success(`Gênero: ${genreName}`)
+    } catch (error) {
+      console.error("Falha ao carregar gênero:", error)
+      setMovies([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
+  // --- Carregamento Inicial (useEffect) ---
   useEffect(() => {
     async function loadInitialData() {
       setLoading(true)
       try {
+        // 1. Carrega Listas do Firebase
         const { favorites: initialFavorites, seen: initialSeen } = await getSharedLists()
+        const initialRatings = await getRatings() 
+
         setFavorites(initialFavorites)
         setSeenMovies(initialSeen)
+        setRatings(initialRatings)
 
-        await getGenres().then(setGenres)
+        // 2. Configura Banner Aleatório (Prioridade: FAVORITOS)
+        const sourceList = initialFavorites.length > 0 ? initialFavorites : initialSeen
+        
+        if (sourceList.length > 0) {
+          const shuffledIds = [...sourceList].sort(() => 0.5 - Math.random())
+          const random5Ids = shuffledIds.slice(0, 5)
+          const bannerData = await Promise.all(random5Ids.map((id: number) => getMovieById(id)))
+          setBannerMovies(bannerData)
+        }
 
-        // Recupera a view salva e define o estado CORRETAMENTE
+        // 3. Carrega Gêneros (Filtrando "Música")
+        const genresData = await getGenres()
+        const filteredGenres = genresData.filter((g) => g.name !== "Música")
+        setGenres(filteredGenres)
+
+        // 4. Restaura View Salva
         const savedView = localStorage.getItem("dashmovie-view") || "popular"
         
         if (savedView === "favorites") {
@@ -131,7 +189,6 @@ export default function Home() {
         } else if (savedView === "roulette") {
           setCurrentView("roulette")
         } else {
-          // Fallback para popular (cobre casos de 'popular' ou 'search' salvo)
           await displayPopularMovies()
         }
       } catch (error) {
@@ -141,9 +198,9 @@ export default function Home() {
       }
     }
     loadInitialData()
-  }, []) // Executa apenas uma vez na montagem
+  }, [])
 
-  // --- Funções de Ação ---
+  // --- Ações do Usuário ---
 
   const markAsSeen = (movieId: number) => {
     const newFavorites = favorites.filter((id) => id !== movieId)
@@ -189,6 +246,39 @@ export default function Home() {
     setRouletteMovies((prev) => prev.filter((m) => m.id !== id))
   }
 
+  // --- Lógica de Estatísticas e Notas ---
+
+  const handleOpenStats = async () => {
+    setShowStats(true)
+    if (seenMoviesDetails.length !== seenMovies.length && seenMovies.length > 0) {
+       setStatsLoading(true) 
+       try {
+         const details = await Promise.all(seenMovies.map(id => getMovieDetails(id)))
+         setSeenMoviesDetails(details)
+       } catch (e) {
+         console.error("Erro ao carregar detalhes para estatísticas", e)
+         toast.error("Erro ao calcular estatísticas")
+       } finally {
+         setStatsLoading(false)
+       }
+    }
+  }
+
+  const handleRateMovie = async (person: "anak" | "silvio", rating: number) => {
+    if (!selectedMovie) return
+    const newRatings = { 
+        ...ratings, 
+        [selectedMovie.id]: { 
+            ...ratings[selectedMovie.id], 
+            [person]: rating 
+        } 
+    }
+    setRatings(newRatings)
+    await updateMovieRating(selectedMovie.id, person, rating)
+    toast.success(`Nota de ${person} salva!`)
+  }
+
+  // --- Drag and Drop ---
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }))
 
   function handleDragEnd(event: any) {
@@ -210,7 +300,6 @@ export default function Home() {
   const handleSearch = async () => {
     setLoading(true)
     setCurrentView("search")
-    // Não salvamos "search" no localStorage para evitar recarregar em uma busca vazia
     try {
       const results = search.trim() ? await searchMovies(search) : await getPopularMovies()
       setMovies(results)
@@ -224,36 +313,31 @@ export default function Home() {
 
   const getViewTitle = () => {
     switch (currentView) {
-      case "favorites":
-        return "Meus Favoritos"
-      case "seen":
-        return "Já Assistidos"
-      case "search":
-        return "Resultados da Busca"
-      case "roulette":
-        return "Roleta da Sorte"
-      default:
-        return "Em Alta"
+      case "favorites": return "Meus Favoritos"
+      case "seen": return "Já Assistidos"
+      case "search": return "Resultados da Busca"
+      case "roulette": return "Roleta da Sorte"
+      case "genre": return currentGenreName ? `Gênero: ${currentGenreName}` : "Filmes por Gênero"
+      default: return "Em Alta"
     }
   }
 
   const getViewIcon = () => {
     switch (currentView) {
-      case "favorites":
-        return <Heart className="w-5 h-5 text-primary" />
-      case "seen":
-        return <Eye className="w-5 h-5 text-primary" />
-      case "roulette":
-        return <Trophy className="w-5 h-5 text-primary" />
-      default:
-        return <Sparkles className="w-5 h-5 text-primary" />
+      case "favorites": return <Heart className="w-5 h-5 text-primary" />
+      case "seen": return <Eye className="w-5 h-5 text-primary" />
+      case "roulette": return <Trophy className="w-5 h-5 text-primary" />
+      default: return <Sparkles className="w-5 h-5 text-primary" />
     }
   }
+
+  const currentGenres = genres.slice(genrePage * ITEMS_PER_PAGE, (genrePage + 1) * ITEMS_PER_PAGE)
+  const isFirstPage = genrePage === 0
+  const isLastPage = genrePage >= Math.ceil(genres.length / ITEMS_PER_PAGE) - 1
 
   return (
     <div className="min-h-screen">
       <Toaster position="bottom-right" theme="dark" />
-      {/* Background gradient */}
       <div className="fixed inset-0 bg-gradient-to-br from-background via-background to-secondary/30 -z-10" />
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent -z-10" />
 
@@ -272,122 +356,159 @@ export default function Home() {
             </h1>
           </button>
 
-          {/* Search bar */}
-          <div className="relative flex items-center gap-3 w-full max-w-xl">
-            <div className="flex-grow flex items-center gap-3 px-4 py-3 glass rounded-2xl focus-within:ring-2 focus-within:ring-primary/50 transition-all">
-              <Search className="w-5 h-5 text-muted-foreground" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                placeholder="Buscar filmes..."
-                className="bg-transparent border-none text-foreground placeholder-muted-foreground w-full focus:ring-0 focus:outline-none text-sm"
-              />
-              <button
-                onClick={handleSearch}
-                className="cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-              >
-                Buscar
-              </button>
+          <div className="flex flex-col items-center w-full max-w-xl gap-4">
+            
+            {/* Search Bar */}
+            <div className="relative flex items-center gap-3 w-full">
+              <div className="flex-grow flex items-center gap-3 px-4 py-3 glass rounded-2xl focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                <Search className="w-5 h-5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  placeholder="Buscar filmes..."
+                  className="bg-transparent border-none text-foreground placeholder-muted-foreground w-full focus:ring-0 focus:outline-none text-sm"
+                />
+                <button
+                  onClick={handleSearch}
+                  className="cursor-pointer bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium transition-all active:scale-95"
+                >
+                  Buscar
+                </button>
+              </div>
+
+              <Menu as="div" className="relative">
+                <Menu.Button className="cursor-pointer p-3 glass rounded-xl hover:bg-secondary/50 transition-colors">
+                  <MenuIcon className="w-5 h-5 text-foreground" />
+                </Menu.Button>
+                <Transition
+                  as={Fragment}
+                  enter="transition ease-out duration-200"
+                  enterFrom="transform opacity-0 scale-95"
+                  enterTo="transform opacity-100 scale-100"
+                  leave="transition ease-in duration-150"
+                  leaveFrom="transform opacity-100 scale-100"
+                  leaveTo="transform opacity-0 scale-95"
+                >
+                  <MenuItems className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl z-20 focus:outline-none overflow-hidden">
+                    <div className="p-2">
+                      <MenuItem>
+                        {({ active }) => (
+                          <button
+                            onClick={displayFavoriteMovies}
+                            className={`${active ? "bg-secondary/50" : ""} cursor-pointer flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
+                          >
+                            <Heart className="w-4 h-4 text-primary" />
+                            Favoritos
+                            {favorites.length > 0 && <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">{favorites.length}</span>}
+                          </button>
+                        )}
+                      </MenuItem>
+                      <MenuItem>
+                        {({ active }) => (
+                          <button
+                            onClick={displaySeenMovies}
+                            className={`${active ? "bg-secondary/50" : ""} cursor-pointer flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
+                          >
+                            <Eye className="w-4 h-4 text-primary" />
+                            Já Assistidos
+                            {seenMovies.length > 0 && <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">{seenMovies.length}</span>}
+                          </button>
+                        )}
+                      </MenuItem>
+                      <MenuItem>
+                        {({ active }) => (
+                          <button
+                            onClick={displayRoulette}
+                            className={`${active ? "bg-secondary/50" : ""} cursor-pointer flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
+                          >
+                            <Trophy className="w-4 h-4 text-primary" />
+                            Roleta
+                            {rouletteMovies.length > 0 && <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">{rouletteMovies.length}</span>}
+                          </button>
+                        )}
+                      </MenuItem>
+                    </div>
+                  </MenuItems>
+                </Transition>
+              </Menu>
             </div>
 
-            {/* Menu dropdown */}
-            <Menu as="div" className="relative">
-              <Menu.Button className="cursor-pointer p-3 glass rounded-xl hover:bg-secondary/50 transition-colors">
-                <MenuIcon className="w-5 h-5 text-foreground" />
-              </Menu.Button>
-              <Transition
-                as={Fragment}
-                enter="transition ease-out duration-200"
-                enterFrom="transform opacity-0 scale-95"
-                enterTo="transform opacity-100 scale-100"
-                leave="transition ease-in duration-150"
-                leaveFrom="transform opacity-100 scale-100"
-                leaveTo="transform opacity-0 scale-95"
-              >
-                <MenuItems className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl z-20 focus:outline-none overflow-hidden">
-                  <div className="p-2">
-                    <MenuItem>
-                      {({ active }) => (
-                        <button
-                          onClick={displayFavoriteMovies}
-                          className={`${
-                            active ? "bg-secondary/50" : ""
-                          } cursor-pointer flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
-                        >
-                          <Heart className="w-4 h-4 text-primary" />
-                          Favoritos
-                          {favorites.length > 0 && (
-                            <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                              {favorites.length}
-                            </span>
-                          )}
-                        </button>
-                      )}
-                    </MenuItem>
-                    <MenuItem>
-                      {({ active }) => (
-                        <button
-                          onClick={displaySeenMovies}
-                          className={`${
-                            active ? "bg-secondary/50" : ""
-                          } cursor-pointer flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
-                        >
-                          <Eye className="w-4 h-4 text-primary" />
-                          Já Assistidos
-                          {seenMovies.length > 0 && (
-                            <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                              {seenMovies.length}
-                            </span>
-                          )}
-                        </button>
-                      )}
-                    </MenuItem>
-                    <MenuItem>
-                      {({ active }) => (
-                        <button
-                          onClick={displayRoulette}
-                          className={`${
-                            active ? "bg-secondary/50" : ""
-                          } cursor-pointer flex items-center gap-3 w-full px-4 py-3 text-sm text-foreground rounded-lg transition-colors`}
-                        >
-                          <Trophy className="w-4 h-4 text-primary" />
-                          Roleta
-                          {rouletteMovies.length > 0 && (
-                            <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                              {rouletteMovies.length}
-                            </span>
-                          )}
-                        </button>
-                      )}
-                    </MenuItem>
-                    <div className="my-2 border-t border-border" />
-                    <div className="px-4 py-2">
-                      <p className="text-xs text-muted-foreground font-medium mb-2">Gêneros</p>
-                      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
-                        {genres.slice(0, 10).map((genre) => (
-                          <span key={genre.id} className="text-xs bg-secondary/50 text-foreground px-2 py-1 rounded-md">
-                            {genre.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </MenuItems>
-              </Transition>
-            </Menu>
+            {/* --- LISTA DE GÊNEROS (Grid 4 colunas - Com Animação) --- */}
+            {currentView === "popular" && (
+              <div className="relative w-full group animate-in fade-in slide-in-from-top-4 duration-500">
+                <button 
+                  onClick={handlePrevGenrePage}
+                  disabled={isFirstPage}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-5 z-10 bg-black/50 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all disabled:opacity-0 disabled:pointer-events-none cursor-pointer hover:scale-110"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+
+                {/* ADICIONADO: key={genrePage} para forçar re-render e animação */}
+                <div 
+                  key={genrePage}
+                  className="grid grid-cols-4 gap-3 w-full animate-in fade-in slide-in-from-right-4 duration-300"
+                >
+                  {currentGenres.map((genre) => (
+                    <button
+                      key={genre.id}
+                      onClick={() => displayMoviesByGenre(genre.id, genre.name)}
+                      className="bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground h-10 rounded-xl text-sm font-medium transition-all cursor-pointer active:scale-95 flex items-center justify-center px-1"
+                    >
+                      <span className="truncate w-full text-center">{genre.name}</span>
+                    </button>
+                  ))}
+                  {currentGenres.length < ITEMS_PER_PAGE && 
+                     Array.from({ length: ITEMS_PER_PAGE - currentGenres.length }).map((_, i) => (
+                       <div key={`empty-${i}`} className="h-10" />
+                     ))
+                  }
+                </div>
+
+                <button 
+                  onClick={handleNextGenrePage}
+                  disabled={isLastPage}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-5 z-10 bg-black/50 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all disabled:opacity-0 disabled:pointer-events-none cursor-pointer hover:scale-110"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+            {/* --------------------------------------------------- */}
+
           </div>
         </header>
 
-        {/* Section title */}
+        {/* Banner - Apenas na Home */}
+        {bannerMovies.length > 0 && currentView === "popular" && (
+          <HeroCarousel 
+            movies={bannerMovies} 
+            onSelect={setSelectedMovie} 
+          />
+        )}
+
+        {/* Título da Seção + Botão de Estatísticas (NO SEEN) */}
         <div className="flex items-center gap-3 mb-6">
           {getViewIcon()}
           <h2 className="text-xl font-semibold text-foreground">{getViewTitle()}</h2>
+          
           {currentView !== "roulette" && <span className="text-sm text-muted-foreground">({movies.length} filmes)</span>}
+
+          {/* Botão de Stats (Apenas em SEEN) */}
+          {currentView === "seen" && (
+            <button
+              onClick={handleOpenStats}
+              className="ml-2 p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer group"
+              title="Estatísticas de Assistidos"
+            >
+              <BarChart2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </button>
+          )}
         </div>
 
-        {/* Content */}
+        {/* Grid de Filmes / Roleta */}
         {currentView === "roulette" ? (
           <Roulette
             movies={rouletteMovies}
@@ -463,7 +584,24 @@ export default function Home() {
           </div>
         )}
 
-        {selectedMovie && <MovieModal movie={selectedMovie} onClose={() => setSelectedMovie(null)} />}
+        {/* Modais */}
+        {showStats && (
+          <StatsModal 
+            seenMovies={seenMoviesDetails.length > 0 ? seenMoviesDetails : []} 
+            ratings={ratings}
+            onClose={() => setShowStats(false)}
+            isLoading={statsLoading} 
+          />
+        )}
+
+        {selectedMovie && (
+          <MovieModal 
+            movie={selectedMovie} 
+            onClose={() => setSelectedMovie(null)}
+            ratings={ratings[selectedMovie.id]} 
+            onRate={handleRateMovie} 
+          />
+        )}
       </div>
     </div>
   )

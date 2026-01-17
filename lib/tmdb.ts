@@ -3,9 +3,18 @@ export interface Movie {
   id: number
   title: string
   poster_path: string | null
+  backdrop_path: string | null
   release_date: string
   vote_average: number
   overview: string
+}
+
+export interface Video {
+  id: string
+  key: string
+  name: string
+  site: string
+  type: string
 }
 
 export interface Genre {
@@ -30,6 +39,9 @@ export interface MovieDetails extends Movie {
   genres: Genre[]
   credits: {
     cast: CastMember[]
+  }
+  videos:{ 
+    results: Video[]
   }
   "watch/providers": {
     results: {
