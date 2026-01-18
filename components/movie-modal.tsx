@@ -3,13 +3,16 @@
 import { useState, useEffect, useRef } from "react"
 import { getMovieImages, getMovieCertification, getMovieDetails } from "@/app/actions/tmdb"
 import type { Movie, MovieDetails, Genre, CastMember } from "@/lib/tmdb"
-import { X, Star, Clock, Calendar, Users, PlayCircle, User, ChevronLeft, ChevronRight } from "lucide-react"
+import { X, Star, Clock, Calendar, Users, PlayCircle, User, ChevronLeft, ChevronRight, Heart } from "lucide-react"
 
 interface Props {
   movie: Movie | null
   onClose: () => void
   ratings?: { anak?: number; silvio?: number }
   onRate?: (person: "anak" | "silvio", rating: number) => void
+  // NOVAS PROPS
+  onToggleFavorite?: () => void
+  isFavorite?: boolean
 }
 
 // --- COMPONENTE: Avaliação 0-10 com Precisão 0.5 ---
@@ -19,18 +22,10 @@ function ScoreRating({ value, onChange, label }: any) {
 
   const displayValue = hoverValue !== null ? hoverValue : (value || 0)
 
-  // --- LÓGICA DE COR ATUALIZADA ---
   const getColor = (score: number) => {
-    // 10: Roxo Épico
     if (score === 10) return "bg-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
-    
-    // < 5: Vermelho (Reprovado)
     if (score < 5) return "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
-    
-    // < 7.5: Amarelo (Médio/Bom) -> OBS: 7.5 agora cai no Verde
     if (score < 7.5) return "bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"
-    
-    // 7.5 a 9.5: Verde (Muito Bom)
     return "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"
   }
 
@@ -40,7 +35,6 @@ function ScoreRating({ value, onChange, label }: any) {
     if (score < 7.5) return "#eab308" 
     return "#22c55e" 
   }
-  // -------------------------------
 
   const currentColorClass = getColor(displayValue)
   const currentHex = getBaseColorHex(displayValue)
@@ -115,7 +109,7 @@ function formatRuntime(minutes: number) {
   return `${hours}h ${mins}m`
 }
 
-export default function MovieModal({ movie, onClose, ratings, onRate }: Props) {
+export default function MovieModal({ movie, onClose, ratings, onRate, onToggleFavorite, isFavorite }: Props) {
   const [tab, setTab] = useState<"sinopse" | "info" | "galeria">("sinopse")
   const [images, setImages] = useState<string[]>([])
   const [currentImage, setCurrentImage] = useState(0)
@@ -220,15 +214,36 @@ export default function MovieModal({ movie, onClose, ratings, onRate }: Props) {
         </div>
 
         {/* Seção de Conteúdo (Direita) */}
-        <div className="w-full md:w-1/2 p-6 overflow-y-auto custom-scrollbar max-h-[50vh] md:max-h-[90vh] bg-background/60 backdrop-blur-xl">
-          <button
-            className="cursor-pointer absolute top-4 right-4 p-2 rounded-full bg-secondary/50 hover:bg-destructive text-foreground hover:text-destructive-foreground transition-colors z-10"
-            onClick={onClose}
-          >
-            <X className="w-5 h-5" />
-          </button>
+        <div className="w-full md:w-1/2 p-6 overflow-y-auto custom-scrollbar max-h-[50vh] md:max-h-[90vh] bg-background/60 backdrop-blur-xl relative">
+          
+          {/* BOTÕES FLUTUANTES (Fechar e Favoritar) */}
+          <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">
+            {/* Fechar */}
+            <button
+              className="cursor-pointer p-2 rounded-full bg-secondary/50 hover:bg-destructive text-foreground hover:text-destructive-foreground transition-colors shadow-sm"
+              onClick={onClose}
+              title="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
 
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground pr-10 mb-2">{movie.title}</h2>
+            {/* Favoritar (Novo Botão com Estilo Pílula Redonda) */}
+            {onToggleFavorite && (
+              <button
+                onClick={onToggleFavorite}
+                className={`cursor-pointer p-2 rounded-full transition-all duration-300 shadow-sm hover:scale-110 active:scale-90 ${
+                  isFavorite
+                    ? "bg-primary text-primary-foreground shadow-primary/20" // Ativo: Sólido e Brilhante
+                    : "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground" // Inativo: Translúcido -> Sólido
+                }`}
+                title={isFavorite ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}
+              >
+                <Heart className={`w-5 h-5 ${isFavorite ? "fill-current" : ""}`} />
+              </button>
+            )}
+          </div>
+
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground pr-14 mb-2">{movie.title}</h2>
 
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-4">
             <span className="flex items-center gap-1 bg-secondary/30 px-2 py-1 rounded-md">
