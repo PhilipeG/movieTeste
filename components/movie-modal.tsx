@@ -19,17 +19,28 @@ function ScoreRating({ value, onChange, label }: any) {
 
   const displayValue = hoverValue !== null ? hoverValue : (value || 0)
 
+  // --- LÓGICA DE COR ATUALIZADA ---
   const getColor = (score: number) => {
-    if (score <= 4) return "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
-    if (score <= 7) return "bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+    // 10: Roxo Épico
+    if (score === 10) return "bg-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]"
+    
+    // < 5: Vermelho (Reprovado)
+    if (score < 5) return "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
+    
+    // < 7.5: Amarelo (Médio/Bom) -> OBS: 7.5 agora cai no Verde
+    if (score < 7.5) return "bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+    
+    // 7.5 a 9.5: Verde (Muito Bom)
     return "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"
   }
 
   const getBaseColorHex = (score: number) => {
-    if (score <= 4) return "#ef4444" 
-    if (score <= 7) return "#eab308" 
+    if (score === 10) return "#a855f7" 
+    if (score < 5) return "#ef4444" 
+    if (score < 7.5) return "#eab308" 
     return "#22c55e" 
   }
+  // -------------------------------
 
   const currentColorClass = getColor(displayValue)
   const currentHex = getBaseColorHex(displayValue)
@@ -251,7 +262,7 @@ export default function MovieModal({ movie, onClose, ratings, onRate }: Props) {
             </div>
           )}
 
-          {/* --- NAVEGAÇÃO DE ABAS (Estilo Home Pills) --- */}
+          {/* --- NAVEGAÇÃO DE ABAS --- */}
           <div className="flex gap-2 p-1 mb-4 overflow-x-auto">
             {(["sinopse", "info", "galeria"] as const).map((t) => (
               <button
@@ -293,7 +304,7 @@ export default function MovieModal({ movie, onClose, ratings, onRate }: Props) {
                       </div>
                     </div>
 
-                    {/* GÊNEROS (Estilo Home Pills) */}
+                    {/* GÊNEROS */}
                     <div className="flex items-start gap-3">
                       <Star className="w-5 h-5 text-primary mt-0.5" />
                       <div>
