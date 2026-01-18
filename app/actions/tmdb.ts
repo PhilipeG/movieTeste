@@ -84,3 +84,21 @@ export async function getMoviesByGenre(genreId: number): Promise<Movie[]> {
   })
   return data.results.slice(0, 18)
   }
+
+export async function getWatchProviders(id: number) {
+  const API_KEY = process.env.TMDB_API_KEY
+  const BASE_URL = "https://api.themoviedb.org/3"
+
+  try {
+    const res = await fetch(
+      `${BASE_URL}/movie/${id}/watch/providers?api_key=${API_KEY}`,
+      { next: { revalidate: 3600 } }
+    )
+    const data = await res.json()
+    // Retorna apenas dados do Brasil (BR) ou null se não tiver
+    return data.results?.BR || null
+  } catch (error) {
+    console.error("Erro ao buscar providers:", error)
+    return null
+  }
+}

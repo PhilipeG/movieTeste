@@ -435,8 +435,8 @@ export default function Home() {
               </Menu>
             </div>
 
-            {/* --- LISTA DE GÊNEROS (Grid 4 colunas - Com Animação) --- */}
-            {currentView === "popular" && (
+            {/* --- LISTA DE GÊNEROS (Exibe na Home e nos Gêneros) --- */}
+            {(currentView === "popular" || currentView === "genre") && (
               <div className="relative w-full group animate-in fade-in slide-in-from-top-4 duration-500">
                 <button 
                   onClick={handlePrevGenrePage}
@@ -446,7 +446,6 @@ export default function Home() {
                   <ChevronLeft className="w-5 h-5" />
                 </button>
 
-                {/* ADICIONADO: key={genrePage} para forçar re-render e animação */}
                 <div 
                   key={genrePage}
                   className="grid grid-cols-4 gap-3 w-full animate-in fade-in slide-in-from-right-4 duration-300"

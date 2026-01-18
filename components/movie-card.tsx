@@ -34,10 +34,10 @@ export default function MovieCard({
       className="card-shine relative group w-full aspect-[2/3] rounded-xl overflow-hidden bg-card border border-border hover:border-primary/50 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/10 cursor-pointer"
       onClick={onClick}
     >
-      {/* Skeleton loader */}
+      {/* skeleton load */}
       {!isImageLoaded && <div className="absolute inset-0 w-full h-full bg-secondary animate-pulse" />}
 
-      {/* Poster image */}
+      {/* poster */}
       {movie.poster_path ? (
         <img
           src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
@@ -53,13 +53,13 @@ export default function MovieCard({
         </div>
       )}
 
-      {/* Gradient overlay */}
+      {/* gradiente overlay */}
       <div className="absolute inset-0 w-full h-full bg-gradient-to-t from-background via-background/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-      {/* Content overlay */}
+      {/* content overlay */}
       <div className="absolute inset-0 w-full h-full flex flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
         <div className="space-y-2">
-          {/* Rating badge */}
+          {/* rating */}
           <div className="flex items-center gap-1.5">
             <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
             <span className="text-xs font-medium text-foreground">{movie.vote_average.toFixed(1)}</span>
@@ -67,7 +67,7 @@ export default function MovieCard({
 
           <h2 className="text-foreground text-sm font-semibold line-clamp-2">{movie.title}</h2>
 
-          {/* Action buttons */}
+          {/* botoes de açao */}
           <div className="flex gap-2">
             {onMarkAsSeen && (
               <button
@@ -101,7 +101,7 @@ export default function MovieCard({
         </div>
       </div>
 
-      {/* Remove button (favorites/seen) - Top Right */}
+      {/* botao remover favoritos */}
       {(onRemoveFromFavorites || onRemoveFromSeen) && (
         <button
           onClick={(e) => {
@@ -116,7 +116,7 @@ export default function MovieCard({
         </button>
       )}
 
-      {/* Add to Roulette button - Below Remove button */}
+      {/* botao de adicionar a roleta */}
       {onAddToRoulette && (
         <button
           onClick={(e) => {
