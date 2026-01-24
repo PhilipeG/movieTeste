@@ -25,6 +25,7 @@ export interface RatingsMap {
 export async function getSharedLists(): Promise<{
   favorites: number[]
   seen: number[]
+  roulette?: number[]
 }> {
   const docSnap = await getDoc(sharedListDocRef)
 
@@ -33,6 +34,7 @@ export async function getSharedLists(): Promise<{
     return {
       favorites: data.favorites || [],
       seen: data.seen || [],
+      roulette: data.roulette || [],
     }
   } else {
     await setDoc(sharedListDocRef, { favorites: [], seen: [] })
@@ -52,10 +54,17 @@ export async function updateSeenList(newSeenMovies: number[]) {
   })
 }
 
+export async function updateRouletteList(newRouletteMovies: number[]) {
+  await updateDoc(sharedListDocRef, {
+    roulette: newRouletteMovies,
+  })
+}
+
 export async function getRatings(): Promise<RatingsMap> {
   const docSnap = await getDoc(sharedListDocRef)
   if (docSnap.exists()) {
     return docSnap.data().ratings || {}
+
   }
   return {}
 }
