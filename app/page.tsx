@@ -597,7 +597,16 @@ export default function Home() {
                       return <SortableMovieCard key={movie.id} rank={index + 1} movie={movie} onMarkAsSeen={markAsSeen} onRemoveFromFavorites={removeFromFavorites} onAddToRoulette={addToRoulette} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />
                     }
                     if (currentView === "seen") {
-                      return <MovieCard key={movie.id} movie={movie} onRemoveFromSeen={removeFromSeen} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />
+                      return (
+                        <MovieCard 
+                          key={movie.id} 
+                          movie={movie} 
+                          onRemoveFromSeen={removeFromSeen} 
+                          isFavorite={isFavorited} 
+                          onClick={() => setSelectedMovie(movie)} 
+                          ratings={ratings[movie.id]} // ADICIONADO: Passando as notas apenas na tela de vistos
+                        />
+                      )
                     }
                     return <MovieCard key={movie.id} movie={movie} onFavorite={toggleFavorite} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />
                   })}
