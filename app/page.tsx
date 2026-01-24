@@ -4,7 +4,8 @@ import { useEffect, useState, useRef, Fragment } from "react"
 import dynamic from "next/dynamic"
 import { Menu, Transition, MenuItems, MenuItem, Listbox, ListboxButton, ListboxOptions, ListboxOption } from "@headlessui/react"
 import { getPopularMovies, searchMovies, getGenres, getMovieById, getMovieDetails } from "@/app/actions/tmdb"
-import { getSharedLists, updateFavoritesList, updateSeenList, getRatings, updateMovieRating, updateRouletteList } from "@/lib/firebase" // ADICIONADO: updateRouletteList
+// IMPORT ATUALIZADO (Adicionado subscribeToSharedLists)
+import { getSharedLists, updateFavoritesList, updateSeenList, getRatings, updateMovieRating, updateRouletteList, subscribeToSharedLists } from "@/lib/firebase" 
 import type { RatingsMap } from "@/lib/firebase"
 import type { Movie, Genre } from "@/lib/tmdb"
 import MovieCard from "@/components/movie-card"
@@ -34,34 +35,19 @@ function FilterSelect({ value, onChange, options, icon: Icon, placeholder }: any
       <Listbox value={value} onChange={onChange}>
         <ListboxButton className="relative w-full cursor-pointer bg-secondary/50 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-left text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all hover:bg-secondary/70">
           <span className="block truncate text-foreground flex items-center gap-2">
-             <span className={`text-muted-foreground ${value ? "text-primary" : ""}`}>
-               <Icon className="w-4 h-4" />
-             </span>
+             <span className={`text-muted-foreground ${value ? "text-primary" : ""}`}><Icon className="w-4 h-4" /></span>
              {selectedLabel}
           </span>
-          <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-            <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          </span>
+          <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3"><ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" /></span>
         </ListboxButton>
         <Transition as={Fragment} leave="transition ease-in duration-100" leaveFrom="opacity-100" leaveTo="opacity-0">
           <ListboxOptions className="absolute mt-1 max-h-60 w-full overflow-auto rounded-xl bg-[#121212]/95 backdrop-blur-xl border border-white/10 py-1 text-base shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm z-50 custom-scrollbar">
             <ListboxOption value={null} className={({ active }) => `relative cursor-pointer select-none py-2 pl-10 pr-4 transition-colors ${active ? "bg-primary/20 text-primary" : "text-foreground"}`}>
-              {({ selected }) => (
-                <>
-                  <span className={`block truncate ${selected ? "font-medium" : "font-normal"}`}>{placeholder}</span>
-                  {selected ? (<span className="absolute inset-y-0 left-0 flex items-center pl-3 text-primary"><Check className="h-3 w-3" aria-hidden="true" /></span>) : null}
-                </>
-              )}
+              {({ selected }) => (<><span className={`block truncate ${selected ? "font-medium" : "font-normal"}`}>{placeholder}</span>{selected ? (<span className="absolute inset-y-0 left-0 flex items-center pl-3 text-primary"><Check className="h-3 w-3" aria-hidden="true" /></span>) : null}</>)}
             </ListboxOption>
-
             {options.map((opt: any) => (
               <ListboxOption key={opt.value} value={opt.value} className={({ active }) => `relative cursor-pointer select-none py-2 pl-10 pr-4 transition-colors ${active ? "bg-primary/20 text-primary" : "text-foreground"}`}>
-                {({ selected }) => (
-                  <>
-                    <span className={`block truncate ${selected ? "font-medium text-primary" : "font-normal"}`}>{opt.label}</span>
-                    {selected ? (<span className="absolute inset-y-0 left-0 flex items-center pl-3 text-primary"><Check className="h-4 w-4" aria-hidden="true" /></span>) : null}
-                  </>
-                )}
+                {({ selected }) => (<><span className={`block truncate ${selected ? "font-medium text-primary" : "font-normal"}`}>{opt.label}</span>{selected ? (<span className="absolute inset-y-0 left-0 flex items-center pl-3 text-primary"><Check className="h-4 w-4" aria-hidden="true" /></span>) : null}</>)}
               </ListboxOption>
             ))}
           </ListboxOptions>
@@ -97,22 +83,17 @@ export default function Home() {
   const [statsLoading, setStatsLoading] = useState(false)
   const [seenMoviesDetails, setSeenMoviesDetails] = useState<any[]>([]) 
 
-  // --- ALTERAÇÃO 1: currentView inicializado com localStorage ---
   const [currentView, setCurrentView] = useState("popular")
 
-  // Carrega a view salva no carregamento
+  // Carrega e salva a view (aba) atual no localStorage
   useEffect(() => {
     const savedView = localStorage.getItem("dashmovie_view")
-    if (savedView) {
-      setCurrentView(savedView)
-    }
+    if (savedView) setCurrentView(savedView)
   }, [])
 
-  // Salva a view sempre que ela mudar
   useEffect(() => {
     localStorage.setItem("dashmovie_view", currentView)
   }, [currentView])
-  // ----------------------------------------------------------------
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -120,7 +101,6 @@ export default function Home() {
         setShowFilters(false)
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside)
     return () => { document.removeEventListener("mousedown", handleClickOutside) }
   }, [showFilters])
@@ -185,114 +165,109 @@ export default function Home() {
 
   const displayRoulette = () => { setCurrentView("roulette") }
 
-  // --- ALTERAÇÃO 2: Carregando a Roleta do Firebase na inicialização ---
+  // --- ALTERAÇÃO PRINCIPAL: Carregamento Inicial + Tempo Real ---
   useEffect(() => {
-    async function loadInitialData() {
-      setLoading(true)
+    setLoading(true)
+
+    // 1. Carrega dados estáticos (Gêneros, Avaliações Iniciais)
+    async function loadStaticData() {
       try {
-        // Agora busca também a roleta
-        const { favorites: initialFavorites, seen: initialSeen, roulette: initialRoulette } = await getSharedLists()
         const initialRatings = await getRatings() 
-        setFavorites(initialFavorites)
-        setSeenMovies(initialSeen)
         setRatings(initialRatings)
-
-        // Carrega os filmes da roleta que vieram do banco
-        if (initialRoulette && initialRoulette.length > 0) {
-          const rouletteData = await Promise.all(initialRoulette.map((id: number) => getMovieById(id)))
-          setRouletteMovies(rouletteData)
-        }
-
-        const sourceList = initialFavorites.length > 0 ? initialFavorites : initialSeen
-        if (sourceList.length > 0) {
-          const shuffledIds = [...sourceList].sort(() => 0.5 - Math.random())
-          const random5Ids = shuffledIds.slice(0, 5)
-          const bannerData = await Promise.all(random5Ids.map((id: number) => getMovieById(id)))
-          setBannerMovies(bannerData)
-        }
 
         const genresData = await getGenres()
         const filteredGenres = genresData.filter((g) => g.name !== "Música")
         setGenres(filteredGenres)
 
-        // Se a view inicial já for favoritos ou vistos (por causa do F5), chama a função correta
         const savedView = localStorage.getItem("dashmovie_view")
-        if (savedView === "favorites") {
-            displayFavoriteMovies() // Essa função já foi declarada acima, mas usa os estados, pode dar conflito de closure. Melhor forma:
-            // Ajuste simples para primeira carga:
-            if (initialFavorites.length > 0) {
-                const favData = await Promise.all(initialFavorites.map((id: number) => getMovieById(id)))
-                setMovies(favData)
-            }
-        } else if (savedView === "seen") {
-            if (initialSeen.length > 0) {
-                const seenData = await Promise.all(initialSeen.map((id: number) => getMovieById(id)))
-                setMovies(seenData)
-            }
-        } else {
-            await fetchMovies(true)
+        if (!savedView || savedView === "popular") {
+          await fetchMovies(true)
         }
-
-      } catch (error) { console.error("Falha ao carregar dados iniciais:", error) } finally { setLoading(false) }
+      } catch (error) { console.error("Erro:", error) }
     }
-    loadInitialData()
+    loadStaticData()
+
+    // 2. ESCUTA EM TEMPO REAL: Qualquer pessoa que alterar a roleta, atualiza aqui
+    const unsubscribe = subscribeToSharedLists(async (sharedData) => {
+      // Atualiza os IDs
+      setFavorites(sharedData.favorites)
+      setSeenMovies(sharedData.seen)
+
+      // Atualiza os filmes da Roleta (buscando os detalhes no TMDB)
+      if (sharedData.roulette.length > 0) {
+        const rouletteData = await Promise.all(sharedData.roulette.map((id: number) => getMovieById(id)))
+        setRouletteMovies(rouletteData)
+      } else {
+        setRouletteMovies([])
+      }
+
+      // Se a página inicial do usuário for Favoritos/Vistos, atualiza a grid também
+      const savedView = localStorage.getItem("dashmovie_view")
+      if (savedView === "favorites" && sharedData.favorites.length > 0) {
+        const favData = await Promise.all(sharedData.favorites.map((id: number) => getMovieById(id)))
+        setMovies(favData)
+      } else if (savedView === "seen" && sharedData.seen.length > 0) {
+        const seenData = await Promise.all(sharedData.seen.map((id: number) => getMovieById(id)))
+        setMovies(seenData)
+      }
+
+      // Configura os banners
+      const sourceList = sharedData.favorites.length > 0 ? sharedData.favorites : sharedData.seen
+      if (sourceList.length > 0) {
+        const shuffledIds = [...sourceList].sort(() => 0.5 - Math.random())
+        const random5Ids = shuffledIds.slice(0, 5)
+        const bannerData = await Promise.all(random5Ids.map((id: number) => getMovieById(id)))
+        setBannerMovies(bannerData)
+      }
+
+      setLoading(false)
+    })
+
+    // Limpa a escuta quando o componente for desmontado
+    return () => unsubscribe()
   }, [])
-  // ----------------------------------------------------------------------
+  // -------------------------------------------------------------
 
   const markAsSeen = (movieId: number) => {
     const newFavorites = favorites.filter((id) => id !== movieId)
     const newSeen = [...new Set([...seenMovies, movieId])]
-    setFavorites(newFavorites)
-    setSeenMovies(newSeen)
-    setMovies((current) => current.filter((movie) => movie.id !== movieId))
     updateFavoritesList(newFavorites)
     updateSeenList(newSeen)
   }
 
   const removeFromFavorites = (movieId: number) => {
     const newFavorites = favorites.filter((id) => id !== movieId)
-    setFavorites(newFavorites)
-    setMovies((current) => current.filter((movie) => movie.id !== movieId))
     updateFavoritesList(newFavorites)
   }
 
   const removeFromSeen = (movieId: number) => {
     const newSeen = seenMovies.filter((id) => id !== movieId)
-    setSeenMovies(newSeen)
-    setMovies((current) => current.filter((movie) => movie.id !== movieId))
     updateSeenList(newSeen)
   }
 
   const toggleFavorite = (id: number) => {
     const isFavorited = favorites.includes(id)
     const newFavorites = isFavorited ? favorites.filter((favId) => favId !== id) : [...favorites, id]
-    setFavorites(newFavorites)
     updateFavoritesList(newFavorites)
   }
 
-  // --- ALTERAÇÃO 3: Salvar na Roleta do Firebase ---
+  // --- FUNÇÕES DA ROLETA SIMPLIFICADAS ---
+  // Agora elas só mandam para o Firebase. A tela se atualiza sozinha pelo "onSnapshot"
   const addToRoulette = (movie: Movie) => {
     if (rouletteMovies.find((m) => m.id === movie.id)) {
       toast.error("Filme já está na roleta!")
       return
     }
-    const newRoulette = [...rouletteMovies, movie]
-    setRouletteMovies(newRoulette)
-    
-    // Atualiza no firebase (mapeia apenas os IDs)
-    updateRouletteList(newRoulette.map(m => m.id))
-    
+    const newIds = [...rouletteMovies.map(m => m.id), movie.id]
+    updateRouletteList(newIds) // Manda pro banco
     toast.success("Adicionado à roleta!")
   }
 
   const removeFromRoulette = (id: number) => {
-    const newRoulette = rouletteMovies.filter((m) => m.id !== id)
-    setRouletteMovies(newRoulette)
-    
-    // Atualiza no firebase
-    updateRouletteList(newRoulette.map(m => m.id))
+    const newIds = rouletteMovies.filter(m => m.id !== id).map(m => m.id)
+    updateRouletteList(newIds) // Manda pro banco
   }
-  // --------------------------------------------------
+  // ----------------------------------------
 
   const handleRateMovie = async (person: "anak" | "silvio", rating: number) => {
     if (!selectedMovie) return
@@ -323,7 +298,6 @@ export default function Home() {
         if (oldIndex === -1 || newIndex === -1) return currentMovies
         const newOrder = arrayMove(currentMovies, oldIndex, newIndex)
         const newFavoriteIds = newOrder.map((movie) => movie.id)
-        setFavorites(newFavoriteIds)
         updateFavoritesList(newFavoriteIds)
         return newOrder
       })

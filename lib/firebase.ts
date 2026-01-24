@@ -22,10 +22,11 @@ export interface RatingsMap {
   }
 }
 
+// --- FUNÇÃO ORIGINAL MANTIDA ---
 export async function getSharedLists(): Promise<{
   favorites: number[]
   seen: number[]
-  roulette?: number[]
+  roulette: number[]
 }> {
   const docSnap = await getDoc(sharedListDocRef)
 
@@ -37,43 +38,50 @@ export async function getSharedLists(): Promise<{
       roulette: data.roulette || [],
     }
   } else {
-    await setDoc(sharedListDocRef, { favorites: [], seen: [] })
-    return { favorites: [], seen: [] }
+    await setDoc(sharedListDocRef, { favorites: [], seen: [], roulette: [] })
+    return { favorites: [], seen: [], roulette: [] }
   }
 }
 
-export async function updateFavoritesList(newFavorites: number[]) {
-  await updateDoc(sharedListDocRef, {
-    favorites: newFavorites,
+// --- NOVA FUNÇÃO: ESCUTA EM TEMPO REAL ---
+export function subscribeToSharedLists(
+  callback: (data: { favorites: number[]; seen: number[]; roulette: number[] }) => void
+) {
+  return onSnapshot(sharedListDocRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data()
+      callback({
+        favorites: data.favorites || [],
+        seen: data.seen || [],
+        roulette: data.roulette || [],
+      })
+    }
   })
+}
+// -----------------------------------------
+
+export async function updateFavoritesList(newFavorites: number[]) {
+  await updateDoc(sharedListDocRef, { favorites: newFavorites })
 }
 
 export async function updateSeenList(newSeenMovies: number[]) {
-  await updateDoc(sharedListDocRef, {
-    seen: newSeenMovies,
-  })
+  await updateDoc(sharedListDocRef, { seen: newSeenMovies })
 }
 
 export async function updateRouletteList(newRouletteMovies: number[]) {
-  await updateDoc(sharedListDocRef, {
-    roulette: newRouletteMovies,
-  })
+  await updateDoc(sharedListDocRef, { roulette: newRouletteMovies })
 }
 
 export async function getRatings(): Promise<RatingsMap> {
   const docSnap = await getDoc(sharedListDocRef)
   if (docSnap.exists()) {
     return docSnap.data().ratings || {}
-
   }
   return {}
 }
 
 export async function updateMovieRating(movieId: number, person: "anak" | "silvio", rating: number) {
-  //pega as notas atuais
   const currentRatings = await getRatings()
-
-  //atualiza a nota específica
   const movieRatings = currentRatings[movieId] || {}
   const newRatings = {
     ...currentRatings,
@@ -83,10 +91,6 @@ export async function updateMovieRating(movieId: number, person: "anak" | "silvi
     },
   }
 
-  //salva no banco
-  await updateDoc(sharedListDocRef, {
-    ratings: newRatings,
-  })
-  
+  await updateDoc(sharedListDocRef, { ratings: newRatings })
   return newRatings
 }
