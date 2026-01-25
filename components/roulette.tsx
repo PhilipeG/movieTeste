@@ -28,8 +28,8 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   const [searchTerm, setSearchTerm] = useState("")
   const [lastSpunMovie, setLastSpunMovie] = useState<Movie | null>(null)
 
-  const dynamicFontSize = Math.max(11, 16 - Math.floor(movies.length / 8))
-  const maxChars = Math.max(14, 24 - Math.floor(movies.length / 3))
+  const dynamicFontSize = Math.max(11, 14 - Math.floor(movies.length / 8))
+  const maxChars = Math.max(14, 25 - Math.floor(movies.length / 3))
 
   const data = movies.map((movie) => ({
     option: movie.title.length > maxChars ? movie.title.slice(0, maxChars) + "..." : movie.title,
@@ -88,7 +88,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
           prizeNumber={prizeNumber}
           data={data}
           fontSize={dynamicFontSize}
-          textDistance={58} 
+          textDistance={55} 
           spinDuration={0.9} 
           backgroundColors={backgroundColors}
           textColors={["#ffffff"]}
@@ -108,9 +108,9 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
         <button
           onClick={handleSpinClick}
           disabled={mustSpin}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 bg-white text-black font-bold rounded-full shadow-2xl border-4 border-gray-800 hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed z-10 flex items-center justify-center"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-white text-black font-bold rounded-full shadow-2xl border-4 border-gray-800 hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed z-10 flex items-center justify-center"
         >
-          GIRAR
+          🗘
         </button>
       </div>
 
