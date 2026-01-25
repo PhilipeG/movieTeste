@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Wheel } from "react-custom-roulette"
 import type { Movie } from "@/lib/tmdb"
-import { Sparkles, Trash2 } from "lucide-react"
+import { Sparkles, Trash2, Search, RotateCcw } from "lucide-react"
+import { toast } from "sonner"
 
 interface Props {
   movies: Movie[]
@@ -23,11 +24,26 @@ const backgroundColors = [
 export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   const [mustSpin, setMustSpin] = useState(false)
   const [prizeNumber, setPrizeNumber] = useState(0)
+  
+  const [searchTerm, setSearchTerm] = useState("")
+  const [lastSpunMovie, setLastSpunMovie] = useState<Movie | null>(null)
+
+ 
+  // 16px para poucos filmes, 11px para muitos.
+  const dynamicFontSize = Math.max(11, 16 - Math.floor(movies.length / 8))
+
+  
+  //começa em 24 letras e o mínimo sobe para 14
+  const maxChars = Math.max(14, 24 - Math.floor(movies.length / 3))
 
   const data = movies.map((movie) => ({
-    option: movie.title.length > 15 ? movie.title.slice(0, 15) + "..." : movie.title,
+    option: movie.title.length > maxChars ? movie.title.slice(0, maxChars) + "..." : movie.title,
     style: { textColor: "#ffffff" },
   }))
+
+  const filteredMovies = movies.filter(movie => 
+    movie.title.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const handleSpinClick = () => {
     if (!mustSpin && movies.length > 0) {
@@ -36,6 +52,28 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
       setMustSpin(true)
     }
   }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && lastSpunMovie) {
+        e.preventDefault()
+        onRemoveMovie(lastSpunMovie.id)
+        toast.success(`"${lastSpunMovie.title}" removido da roleta!`)
+        setLastSpunMovie(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [lastSpunMovie, onRemoveMovie])
+
+  useEffect(() => {
+    if (lastSpunMovie && !movies.find(m => m.id === lastSpunMovie.id)) {
+      setLastSpunMovie(null)
+    }
+  }, [movies, lastSpunMovie])
 
   if (movies.length === 0) {
     return (
@@ -55,7 +93,10 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
           mustStartSpinning={mustSpin}
           prizeNumber={prizeNumber}
           data={data}
-          backgroundColors={backgroundColors}
+          fontSize={dynamicFontSize}
+          textDistance={58} // distância do texto ao centro
+          spinDuration={0.8 + movies.length * 0.04} // duração do giro aumenta com mais filmes
+          backgroundColors={backgroundColors} 
           textColors={["#ffffff"]}
           outerBorderColor="#1f2937"
           outerBorderWidth={5}
@@ -65,7 +106,9 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
           radiusLineWidth={2}
           onStopSpinning={() => {
             setMustSpin(false)
-            onSpinEnd(movies[prizeNumber])
+            const winner = movies[prizeNumber]
+            setLastSpunMovie(winner)
+            onSpinEnd(winner)
           }}
         />
         <button
@@ -77,28 +120,68 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
         </button>
       </div>
 
-      {/* Lista de Filmes na Roleta */}
-      <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-xl">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-yellow-500" />
-          Filmes na Roleta ({movies.length})
+      {/* Painel Lateral */}
+      <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-xl flex flex-col max-h-[500px]">
+        {/* Título com Pílula de Aviso */}
+        <h3 className="text-lg font-bold mb-4 flex items-center flex-wrap gap-2 shrink-0 justify-between">
+          <span className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-yellow-500" />
+            Filmes ({movies.length})
+          </span>
+          
+          {/* aviso ctrl z (estilo do botao de buscar) */}
+          {lastSpunMovie && (
+             <span className="animate-in fade-in slide-in-from-left-1 duration-300 px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary rounded-lg text-[10px] md:text-xs font-medium flex items-center gap-1 truncate max-w-[200px]">
+               <RotateCcw className="w-3 h-3 shrink-0" />
+               <span className="truncate">Ctrl+Z: {lastSpunMovie.title}</span>
+             </span>
+          )}
         </h3>
-        <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-          {movies.map((movie) => (
-            <div
-              key={movie.id}
-              className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors group/item"
-            >
-              <span className="text-sm font-medium truncate flex-1 pr-4">{movie.title}</span>
-              <button
-                onClick={() => onRemoveMovie(movie.id)}
-                className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors opacity-0 group-hover/item:opacity-100"
-                title="Remover da roleta"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+
+        {/* barra de busca na roleta */}
+        <div className="relative mb-4 shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input 
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar filme na roleta..."
+            className="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+          />
+        </div>
+
+        {/* lista filmes com destaque pro sorteado */}
+        <div className="space-y-2 overflow-y-auto custom-scrollbar pr-2 flex-grow">
+          {filteredMovies.length > 0 ? (
+            filteredMovies.map((movie) => {
+              const isLastSpun = lastSpunMovie?.id === movie.id;
+
+              const containerClasses = isLastSpun
+                ? "bg-primary/10 border border-primary/20 text-primary" 
+                : "bg-secondary/50 hover:bg-secondary text-foreground";
+                
+              return (
+                <div
+                  key={movie.id}
+                  className={`flex items-center justify-between p-3 rounded-lg transition-colors group/item ${containerClasses}`}
+                >
+                  <span className="text-sm font-medium truncate flex-1 pr-4 flex items-center gap-1">
+                    {isLastSpun && <Sparkles className="w-3 h-3 text-primary shrink-0" />}
+                    <span className="truncate">{movie.title}</span>
+                  </span>
+                  <button
+                    onClick={() => onRemoveMovie(movie.id)}
+                    className={`p-1.5 rounded-md transition-colors opacity-0 group-hover/item:opacity-100 ${isLastSpun ? 'text-primary hover:text-destructive hover:bg-destructive/10' : 'text-muted-foreground hover:text-destructive hover:bg-destructive/10'}`}
+                    title="Remover da roleta"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )
+            })
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhum filme encontrado.</p>
+          )}
         </div>
       </div>
     </div>

@@ -4,7 +4,6 @@ import { useEffect, useState, useRef, Fragment } from "react"
 import dynamic from "next/dynamic"
 import { Menu, Transition, MenuItems, MenuItem, Listbox, ListboxButton, ListboxOptions, ListboxOption } from "@headlessui/react"
 import { getPopularMovies, searchMovies, getGenres, getMovieById, getMovieDetails } from "@/app/actions/tmdb"
-// IMPORT ATUALIZADO (Adicionado subscribeToSharedLists)
 import { getSharedLists, updateFavoritesList, updateSeenList, getRatings, updateMovieRating, updateRouletteList, subscribeToSharedLists } from "@/lib/firebase" 
 import type { RatingsMap } from "@/lib/firebase"
 import type { Movie, Genre } from "@/lib/tmdb"
@@ -84,16 +83,21 @@ export default function Home() {
   const [seenMoviesDetails, setSeenMoviesDetails] = useState<any[]>([]) 
 
   const [currentView, setCurrentView] = useState("popular")
+  const [visibleItemsCount, setVisibleItemsCount] = useState(18)
+  
+  // ref para controlar se o F5 já foi carregado
+  const initialLoadDone = useRef(false)
 
-  // Carrega e salva a view (aba) atual no localStorage
   useEffect(() => {
     const savedView = localStorage.getItem("dashmovie_view")
     if (savedView) setCurrentView(savedView)
   }, [])
 
   useEffect(() => {
+    const savedView = localStorage.getItem("dashmovie_view")
+    if (genres.length === 0 && currentView === "popular" && savedView && savedView !== "popular") return;
     localStorage.setItem("dashmovie_view", currentView)
-  }, [currentView])
+  }, [currentView, genres.length])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -135,41 +139,70 @@ export default function Home() {
 
   useEffect(() => {
     if (currentView === "popular") {
+        const savedView = localStorage.getItem("dashmovie_view")
+        if (genres.length === 0 && savedView && savedView !== "popular") return;
+
         if(movies.length === 0 || activeFilters.genreId || activeFilters.year || activeFilters.minRating) {
             fetchMovies(true)
         }
     }
-  }, [currentView])
+  }, [currentView, genres.length])
 
-  const displayPopularMovies = () => { setCurrentView("popular"); setActiveFilters({ genreId: null, year: null, minRating: null }); fetchMovies(true) }
-
-  const displayFavoriteMovies = async () => {
-    setLoading(true)
-    setCurrentView("favorites")
-    try {
-      if (favorites.length === 0) { setMovies([]); return }
-      const favoriteMoviesData = await Promise.all(favorites.map((id: number) => getMovieById(id)))
-      setMovies(favoriteMoviesData)
-    } catch (error) { setMovies([]) } finally { setLoading(false) }
+  const displayPopularMovies = () => { 
+    setCurrentView("popular"); 
+    setActiveFilters({ genreId: null, year: null, minRating: null }); 
+    fetchMovies(true) 
   }
 
-  const displaySeenMovies = async () => {
+  // carregamento rápido do botão favoritos
+  const displayFavoriteMovies = async () => {
+    setCurrentView("favorites")
+    setVisibleItemsCount(18)
+    if (favorites.length === 0) { setMovies([]); return }
+
     setLoading(true)
-    setCurrentView("seen")
     try {
-      if (seenMovies.length === 0) { setMovies([]); return }
-      const seenMoviesData = await Promise.all(seenMovies.map((id: number) => getMovieById(id)))
-      setMovies(seenMoviesData)
-    } catch (error) { setMovies([]) } finally { setLoading(false) }
+      // carrega os 18 primeiros e libera a tela
+      const initialFavs = favorites.slice(0, 18)
+      const initialData = await Promise.all(initialFavs.map((id: number) => getMovieById(id)))
+      setMovies(initialData)
+      setLoading(false)
+
+      // carrega o restante em background sem travar a tela
+      if (favorites.length > 18) {
+        Promise.all(favorites.slice(18).map((id: number) => getMovieById(id)))
+          .then(remainingData => setMovies(prev => [...prev, ...remainingData]))
+          .catch(console.error)
+      }
+    } catch (error) { setMovies([]); setLoading(false) }
+  }
+
+  // carregamento ultra-rápido do botão "Vistos"
+  const displaySeenMovies = async () => {
+    setCurrentView("seen")
+    setVisibleItemsCount(18)
+    if (seenMovies.length === 0) { setMovies([]); return }
+
+    setLoading(true)
+    try {
+      const initialSeen = seenMovies.slice(0, 18)
+      const initialData = await Promise.all(initialSeen.map((id: number) => getMovieById(id)))
+      setMovies(initialData)
+      setLoading(false)
+
+      if (seenMovies.length > 18) {
+        Promise.all(seenMovies.slice(18).map((id: number) => getMovieById(id)))
+          .then(remainingData => setMovies(prev => [...prev, ...remainingData]))
+          .catch(console.error)
+      }
+    } catch (error) { setMovies([]); setLoading(false) }
   }
 
   const displayRoulette = () => { setCurrentView("roulette") }
 
-  // --- ALTERAÇÃO PRINCIPAL: Carregamento Inicial + Tempo Real ---
   useEffect(() => {
     setLoading(true)
 
-    // 1. Carrega dados estáticos (Gêneros, Avaliações Iniciais)
     async function loadStaticData() {
       try {
         const initialRatings = await getRatings() 
@@ -187,13 +220,11 @@ export default function Home() {
     }
     loadStaticData()
 
-    // 2. ESCUTA EM TEMPO REAL: Qualquer pessoa que alterar a roleta, atualiza aqui
     const unsubscribe = subscribeToSharedLists(async (sharedData) => {
-      // Atualiza os IDs
       setFavorites(sharedData.favorites)
       setSeenMovies(sharedData.seen)
 
-      // Atualiza os filmes da Roleta (buscando os detalhes no TMDB)
+      // A Roleta sempre atualiza em tempo real
       if (sharedData.roulette.length > 0) {
         const rouletteData = await Promise.all(sharedData.roulette.map((id: number) => getMovieById(id)))
         setRouletteMovies(rouletteData)
@@ -201,17 +232,36 @@ export default function Home() {
         setRouletteMovies([])
       }
 
-      // Se a página inicial do usuário for Favoritos/Vistos, atualiza a grid também
-      const savedView = localStorage.getItem("dashmovie_view")
-      if (savedView === "favorites" && sharedData.favorites.length > 0) {
-        const favData = await Promise.all(sharedData.favorites.map((id: number) => getMovieById(id)))
-        setMovies(favData)
-      } else if (savedView === "seen" && sharedData.seen.length > 0) {
-        const seenData = await Promise.all(sharedData.seen.map((id: number) => getMovieById(id)))
-        setMovies(seenData)
+      // carregamento F5 Otimizado + Trava para não bugar a roleta
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true; // Impede que recarregue a lista ao alterar a roleta
+
+        const savedView = localStorage.getItem("dashmovie_view")
+        if (savedView === "favorites" && sharedData.favorites.length > 0) {
+          const initialFavs = sharedData.favorites.slice(0, 18)
+          const favData = await Promise.all(initialFavs.map((id: number) => getMovieById(id)))
+          setMovies(favData)
+          setLoading(false)
+
+          if (sharedData.favorites.length > 18) {
+            Promise.all(sharedData.favorites.slice(18).map((id: number) => getMovieById(id)))
+              .then(remainingData => setMovies(prev => [...prev, ...remainingData]))
+              .catch(console.error)
+          }
+        } else if (savedView === "seen" && sharedData.seen.length > 0) {
+          const initialSeen = sharedData.seen.slice(0, 18)
+          const seenData = await Promise.all(initialSeen.map((id: number) => getMovieById(id)))
+          setMovies(seenData)
+          setLoading(false)
+
+          if (sharedData.seen.length > 18) {
+            Promise.all(sharedData.seen.slice(18).map((id: number) => getMovieById(id)))
+              .then(remainingData => setMovies(prev => [...prev, ...remainingData]))
+              .catch(console.error)
+          }
+        }
       }
 
-      // Configura os banners
       const sourceList = sharedData.favorites.length > 0 ? sharedData.favorites : sharedData.seen
       if (sourceList.length > 0) {
         const shuffledIds = [...sourceList].sort(() => 0.5 - Math.random())
@@ -223,10 +273,8 @@ export default function Home() {
       setLoading(false)
     })
 
-    // Limpa a escuta quando o componente for desmontado
     return () => unsubscribe()
   }, [])
-  // -------------------------------------------------------------
 
   const markAsSeen = (movieId: number) => {
     const newFavorites = favorites.filter((id) => id !== movieId)
@@ -251,23 +299,40 @@ export default function Home() {
     updateFavoritesList(newFavorites)
   }
 
-  // --- FUNÇÕES DA ROLETA SIMPLIFICADAS ---
-  // Agora elas só mandam para o Firebase. A tela se atualiza sozinha pelo "onSnapshot"
-  const addToRoulette = (movie: Movie) => {
+const addToRoulette = (movie: Movie) => {
+    // verificação inicial para evitar cliques em filmes que jja tem na roleta
     if (rouletteMovies.find((m) => m.id === movie.id)) {
       toast.error("Filme já está na roleta!")
       return
     }
-    const newIds = [...rouletteMovies.map(m => m.id), movie.id]
-    updateRouletteList(newIds) // Manda pro banco
-    toast.success("Adicionado à roleta!")
+
+    // garante que cliques rápidos nao se atropelem
+    setRouletteMovies((prevMovies) => {
+      // se no milissegundo do segundo clique o filme já foi adicionado, ignora
+      if (prevMovies.some((m) => m.id === movie.id)) return prevMovies;
+
+      const updatedMovies = [...prevMovies, movie];
+      
+      // envia a lista 100% atualizada para o firebase
+      updateRouletteList(updatedMovies.map(m => m.id)); 
+      return updatedMovies; // Atualiza a tela instantaneamente
+    });
+
+    toast.success("Adicionado à roleta!");
   }
 
-  const removeFromRoulette = (id: number) => {
-    const newIds = rouletteMovies.filter(m => m.id !== id).map(m => m.id)
-    updateRouletteList(newIds) // Manda pro banco
+const removeFromRoulette = (id: number) => {
+    setRouletteMovies((prevMovies) => {
+      // filtra a lista removendo o filme clicado
+      const updatedMovies = prevMovies.filter(m => m.id !== id);
+      
+      // envia a nova lista de IDs para o firebase em segundo plano
+      updateRouletteList(updatedMovies.map(m => m.id)); 
+      
+      // atualiza a tela imediatamente, sem esperar o firebase
+      return updatedMovies; 
+    });
   }
-  // ----------------------------------------
 
   const handleRateMovie = async (person: "anak" | "silvio", rating: number) => {
     if (!selectedMovie) return
@@ -407,16 +472,47 @@ export default function Home() {
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={movies.map((m) => m.id)} strategy={rectSortingStrategy} disabled={currentView !== "favorites"}>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {movies.map((movie, index) => {
-                    const isFavorited = favorites.includes(movie.id)
-                    if (currentView === "favorites") return <SortableMovieCard key={movie.id} rank={index + 1} movie={movie} onMarkAsSeen={markAsSeen} onRemoveFromFavorites={removeFromFavorites} onAddToRoulette={addToRoulette} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />
-                    if (currentView === "seen") return <MovieCard key={movie.id} movie={movie} onRemoveFromSeen={removeFromSeen} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} ratings={ratings[movie.id]} />
-                    return <MovieCard key={movie.id} movie={movie} onFavorite={toggleFavorite} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />
+                  {movies
+                    .slice(0, (currentView === "favorites" || currentView === "seen") ? visibleItemsCount : movies.length)
+                    .map((movie, index) => {
+                      const isFavorited = favorites.includes(movie.id)
+                      if (currentView === "favorites") return <SortableMovieCard key={movie.id} rank={index + 1} movie={movie} onMarkAsSeen={markAsSeen} onRemoveFromFavorites={removeFromFavorites} onAddToRoulette={addToRoulette} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />
+                      if (currentView === "seen") return <MovieCard key={movie.id} movie={movie} onRemoveFromSeen={removeFromSeen} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} ratings={ratings[movie.id]} />
+                      return <MovieCard key={movie.id} movie={movie} onFavorite={toggleFavorite} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />
                   })}
                 </div>
               </SortableContext>
             </DndContext>
-            {(currentView === "popular" || currentView === "search") && (<div className="flex justify-center mt-12 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500"><button onClick={() => fetchMovies(false)} disabled={loadingMore} className="cursor-pointer group flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground px-8 py-3 rounded-2xl font-medium transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">{loadingMore ? (<><Loader2 className="w-5 h-5 animate-spin" />Carregando...</>) : (<><PlusCircle className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />Ver Mais Filmes</>)}</button></div>)}
+
+            {/* Botão Ver Mais para Favoritos ou Vistos */}
+            {(currentView === "favorites" || currentView === "seen") && visibleItemsCount < movies.length && (
+              <div className="flex justify-center mt-12 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <button 
+                  onClick={() => setVisibleItemsCount(prev => prev + 18)} 
+                  className="cursor-pointer group flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground px-8 py-3 rounded-2xl font-medium transition-all active:scale-95"
+                >
+                  <PlusCircle className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                  Ver Mais Filmes
+                </button>
+              </div>
+            )}
+
+            {/* Botão Ver Mais original para Popular/Search */}
+            {(currentView === "popular" || currentView === "search") && (
+              <div className="flex justify-center mt-12 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <button 
+                  onClick={() => fetchMovies(false)} 
+                  disabled={loadingMore} 
+                  className="cursor-pointer group flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground px-8 py-3 rounded-2xl font-medium transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  {loadingMore ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" />Carregando...</>
+                  ) : (
+                    <><PlusCircle className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />Ver Mais Filmes</>
+                  )}
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
