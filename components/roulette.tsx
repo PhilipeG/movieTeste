@@ -28,12 +28,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   const [searchTerm, setSearchTerm] = useState("")
   const [lastSpunMovie, setLastSpunMovie] = useState<Movie | null>(null)
 
- 
-  // 16px para poucos filmes, 11px para muitos.
   const dynamicFontSize = Math.max(11, 16 - Math.floor(movies.length / 8))
-
-  
-  //começa em 24 letras e o mínimo sobe para 14
   const maxChars = Math.max(14, 24 - Math.floor(movies.length / 3))
 
   const data = movies.map((movie) => ({
@@ -86,17 +81,16 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   }
 
   return (
-    <div className="flex flex-col md:flex-row items-center justify-center gap-12 py-8">
-      {/* Roleta */}
-      <div className="relative group">
+    <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24 py-12">
+      <div className="relative group scale-105 md:scale-125 transition-transform duration-500">
         <Wheel
           mustStartSpinning={mustSpin}
           prizeNumber={prizeNumber}
           data={data}
           fontSize={dynamicFontSize}
-          textDistance={58} // distância do texto ao centro
-          spinDuration={0.8 + movies.length * 0.04} // duração do giro aumenta com mais filmes
-          backgroundColors={backgroundColors} 
+          textDistance={58} 
+          spinDuration={0.9} 
+          backgroundColors={backgroundColors}
           textColors={["#ffffff"]}
           outerBorderColor="#1f2937"
           outerBorderWidth={5}
@@ -114,22 +108,19 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
         <button
           onClick={handleSpinClick}
           disabled={mustSpin}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 bg-white text-black font-bold rounded-full shadow-xl border-4 border-gray-800 hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed z-10 flex items-center justify-center"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 bg-white text-black font-bold rounded-full shadow-2xl border-4 border-gray-800 hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed z-10 flex items-center justify-center"
         >
           GIRAR
         </button>
       </div>
 
-      {/* Painel Lateral */}
       <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-xl flex flex-col max-h-[500px]">
-        {/* Título com Pílula de Aviso */}
         <h3 className="text-lg font-bold mb-4 flex items-center flex-wrap gap-2 shrink-0 justify-between">
           <span className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-yellow-500" />
             Filmes ({movies.length})
           </span>
           
-          {/* aviso ctrl z (estilo do botao de buscar) */}
           {lastSpunMovie && (
              <span className="animate-in fade-in slide-in-from-left-1 duration-300 px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary rounded-lg text-[10px] md:text-xs font-medium flex items-center gap-1 truncate max-w-[200px]">
                <RotateCcw className="w-3 h-3 shrink-0" />
@@ -138,7 +129,6 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
           )}
         </h3>
 
-        {/* barra de busca na roleta */}
         <div className="relative mb-4 shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input 
@@ -150,7 +140,6 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
           />
         </div>
 
-        {/* lista filmes com destaque pro sorteado */}
         <div className="space-y-2 overflow-y-auto custom-scrollbar pr-2 flex-grow">
           {filteredMovies.length > 0 ? (
             filteredMovies.map((movie) => {
