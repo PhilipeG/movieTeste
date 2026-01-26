@@ -22,14 +22,15 @@ export const viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="dark">
+    // Adicione o suppressHydrationWarning aqui:
+    <html lang="pt-BR" className="dark" suppressHydrationWarning>
       <body className={`font-sans antialiased min-h-screen bg-background`}>
         {children}
         <Analytics />
       </body>
     </html>
-  )
+  );
 }

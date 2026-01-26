@@ -83,9 +83,10 @@ export default function Home() {
   const [seenMoviesDetails, setSeenMoviesDetails] = useState<any[]>([]) 
 
   const [currentView, setCurrentView] = useState("popular")
+  
+  // A quantidade inicial visível continua 18. Como teremos 36 na memória, o botão aparecerá direto.
   const [visibleItemsCount, setVisibleItemsCount] = useState(18)
   
-  // ref para controlar se o F5 já foi carregado
   const initialLoadDone = useRef(false)
 
   useEffect(() => {
@@ -154,44 +155,46 @@ export default function Home() {
     fetchMovies(true) 
   }
 
-  // carregamento rápido do botão favoritos
+  // --- OTIMIZAÇÃO: Carrega 36 filmes inicialmente ---
   const displayFavoriteMovies = async () => {
     setCurrentView("favorites")
-    setVisibleItemsCount(18)
+    setVisibleItemsCount(18) // Mostra 18 na tela
     if (favorites.length === 0) { setMovies([]); return }
 
     setLoading(true)
     try {
-      // carrega os 18 primeiros e libera a tela
-      const initialFavs = favorites.slice(0, 18)
+      // 1. Carrega as duas primeiras páginas (36 filmes) IMEDIATAMENTE
+      const initialFavs = favorites.slice(0, 36) 
       const initialData = await Promise.all(initialFavs.map((id: number) => getMovieById(id)))
       setMovies(initialData)
-      setLoading(false)
+      setLoading(false) // Libera a tela! O botão "Ver mais" já vai estar pronto.
 
-      // carrega o restante em background sem travar a tela
-      if (favorites.length > 18) {
-        Promise.all(favorites.slice(18).map((id: number) => getMovieById(id)))
+      // 2. Carrega o restante (do 37 em diante) em background
+      if (favorites.length > 36) {
+        Promise.all(favorites.slice(36).map((id: number) => getMovieById(id)))
           .then(remainingData => setMovies(prev => [...prev, ...remainingData]))
           .catch(console.error)
       }
     } catch (error) { setMovies([]); setLoading(false) }
   }
 
-  // carregamento ultra-rápido do botão "Vistos"
+  // --- OTIMIZAÇÃO: Carrega 36 filmes inicialmente ---
   const displaySeenMovies = async () => {
     setCurrentView("seen")
-    setVisibleItemsCount(18)
+    setVisibleItemsCount(18) // Mostra 18 na tela
     if (seenMovies.length === 0) { setMovies([]); return }
 
     setLoading(true)
     try {
-      const initialSeen = seenMovies.slice(0, 18)
+      // 1. Carrega as duas primeiras páginas (36 filmes)
+      const initialSeen = seenMovies.slice(0, 36)
       const initialData = await Promise.all(initialSeen.map((id: number) => getMovieById(id)))
       setMovies(initialData)
       setLoading(false)
 
-      if (seenMovies.length > 18) {
-        Promise.all(seenMovies.slice(18).map((id: number) => getMovieById(id)))
+      // 2. Carrega o restante (do 37 em diante) em background
+      if (seenMovies.length > 36) {
+        Promise.all(seenMovies.slice(36).map((id: number) => getMovieById(id)))
           .then(remainingData => setMovies(prev => [...prev, ...remainingData]))
           .catch(console.error)
       }
@@ -224,7 +227,6 @@ export default function Home() {
       setFavorites(sharedData.favorites)
       setSeenMovies(sharedData.seen)
 
-      // A Roleta sempre atualiza em tempo real
       if (sharedData.roulette.length > 0) {
         const rouletteData = await Promise.all(sharedData.roulette.map((id: number) => getMovieById(id)))
         setRouletteMovies(rouletteData)
@@ -232,30 +234,30 @@ export default function Home() {
         setRouletteMovies([])
       }
 
-      // carregamento F5 Otimizado + Trava para não bugar a roleta
+      // OTIMIZAÇÃO NO F5: Também carrega 36 filmes iniciais
       if (!initialLoadDone.current) {
-        initialLoadDone.current = true; // Impede que recarregue a lista ao alterar a roleta
+        initialLoadDone.current = true; 
 
         const savedView = localStorage.getItem("dashmovie_view")
         if (savedView === "favorites" && sharedData.favorites.length > 0) {
-          const initialFavs = sharedData.favorites.slice(0, 18)
+          const initialFavs = sharedData.favorites.slice(0, 36)
           const favData = await Promise.all(initialFavs.map((id: number) => getMovieById(id)))
           setMovies(favData)
           setLoading(false)
 
-          if (sharedData.favorites.length > 18) {
-            Promise.all(sharedData.favorites.slice(18).map((id: number) => getMovieById(id)))
+          if (sharedData.favorites.length > 36) {
+            Promise.all(sharedData.favorites.slice(36).map((id: number) => getMovieById(id)))
               .then(remainingData => setMovies(prev => [...prev, ...remainingData]))
               .catch(console.error)
           }
         } else if (savedView === "seen" && sharedData.seen.length > 0) {
-          const initialSeen = sharedData.seen.slice(0, 18)
+          const initialSeen = sharedData.seen.slice(0, 36)
           const seenData = await Promise.all(initialSeen.map((id: number) => getMovieById(id)))
           setMovies(seenData)
           setLoading(false)
 
-          if (sharedData.seen.length > 18) {
-            Promise.all(sharedData.seen.slice(18).map((id: number) => getMovieById(id)))
+          if (sharedData.seen.length > 36) {
+            Promise.all(sharedData.seen.slice(36).map((id: number) => getMovieById(id)))
               .then(remainingData => setMovies(prev => [...prev, ...remainingData]))
               .catch(console.error)
           }
@@ -299,37 +301,24 @@ export default function Home() {
     updateFavoritesList(newFavorites)
   }
 
-const addToRoulette = (movie: Movie) => {
-    // verificação inicial para evitar cliques em filmes que jja tem na roleta
+  const addToRoulette = (movie: Movie) => {
     if (rouletteMovies.find((m) => m.id === movie.id)) {
       toast.error("Filme já está na roleta!")
       return
     }
-
-    // garante que cliques rápidos nao se atropelem
     setRouletteMovies((prevMovies) => {
-      // se no milissegundo do segundo clique o filme já foi adicionado, ignora
       if (prevMovies.some((m) => m.id === movie.id)) return prevMovies;
-
       const updatedMovies = [...prevMovies, movie];
-      
-      // envia a lista 100% atualizada para o firebase
       updateRouletteList(updatedMovies.map(m => m.id)); 
-      return updatedMovies; // Atualiza a tela instantaneamente
+      return updatedMovies; 
     });
-
     toast.success("Adicionado à roleta!");
   }
 
-const removeFromRoulette = (id: number) => {
+  const removeFromRoulette = (id: number) => {
     setRouletteMovies((prevMovies) => {
-      // filtra a lista removendo o filme clicado
       const updatedMovies = prevMovies.filter(m => m.id !== id);
-      
-      // envia a nova lista de IDs para o firebase em segundo plano
       updateRouletteList(updatedMovies.map(m => m.id)); 
-      
-      // atualiza a tela imediatamente, sem esperar o firebase
       return updatedMovies; 
     });
   }
@@ -394,12 +383,12 @@ const removeFromRoulette = (id: number) => {
       case "favorites": return <Heart className="w-5 h-5 text-primary" />
       case "seen": return <Eye className="w-5 h-5 text-primary" />
       case "roulette": return <Trophy className="w-5 h-5 text-primary" />
-      default: return <Sparkles className="w-5 h-5 text-primary" />
+      default: return <Sparkles className="w-5 h-5 text-primary" suppressHydrationWarning />
     }
   }
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-20" suppressHydrationWarning>
       <Toaster position="bottom-right" theme="dark" />
       <div className="fixed inset-0 bg-gradient-to-br from-background via-background to-secondary/30 -z-10" />
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent -z-10" />
@@ -408,7 +397,7 @@ const removeFromRoulette = (id: number) => {
         <header className="flex flex-col items-center w-full mb-12">
           <button onClick={displayPopularMovies} className="cursor-pointer group flex items-center gap-3 mb-8 transition-transform hover:scale-105">
             <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 group-hover:bg-primary/20 transition-colors">
-              <Film className="w-8 h-8 text-primary" />
+              <Film className="w-8 h-8 text-primary" suppressHydrationWarning />
             </div>
             <h1 className="text-4xl font-bold text-foreground tracking-tight">Dash<span className="text-primary">Movie</span></h1>
           </button>
@@ -416,13 +405,13 @@ const removeFromRoulette = (id: number) => {
           <div className="flex flex-col items-center w-full max-w-xl gap-4">
             <div className="relative flex items-center gap-3 w-full">
               <div className="flex-grow flex items-center gap-3 px-4 py-3 glass rounded-2xl focus-within:ring-2 focus-within:ring-primary/50 transition-all">
-                <Search className="w-5 h-5 text-muted-foreground" />
+                <Search className="w-5 h-5 text-muted-foreground" suppressHydrationWarning />
                 <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} placeholder="Buscar filmes..." className="bg-transparent border-none text-foreground placeholder-muted-foreground w-full focus:ring-0 focus:outline-none text-sm" />
                 <button onClick={handleSearch} className="cursor-pointer bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium transition-all active:scale-95">Buscar</button>
               </div>
 
               <Menu as="div" className="relative">
-                <Menu.Button className="cursor-pointer p-3 glass rounded-xl hover:bg-secondary/50 transition-colors"><MenuIcon className="w-5 h-5 text-foreground" /></Menu.Button>
+                <Menu.Button className="cursor-pointer p-3 glass rounded-xl hover:bg-secondary/50 transition-colors"><MenuIcon className="w-5 h-5 text-foreground" suppressHydrationWarning /></Menu.Button>
                 <Transition as={Fragment} enter="transition ease-out duration-200" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-150" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
                   <MenuItems className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl z-20 focus:outline-none overflow-hidden">
                     <div className="p-2">
@@ -447,7 +436,7 @@ const removeFromRoulette = (id: number) => {
 
           {currentView === "popular" && (
             <div className="relative ml-2">
-                <button ref={filterBtnRef} onClick={() => setShowFilters(!showFilters)} className={`p-2 rounded-lg transition-all cursor-pointer group ${showFilters || activeFilters.genreId || activeFilters.year || activeFilters.minRating ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground"}`} title="Filtros Avançados"><SlidersHorizontal className="w-4 h-4 group-hover:scale-110 transition-transform" /></button>
+                <button ref={filterBtnRef} onClick={() => setShowFilters(!showFilters)} className={`p-2 rounded-lg transition-all cursor-pointer group ${showFilters || activeFilters.genreId || activeFilters.year || activeFilters.minRating ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground"}`} title="Filtros Avançados"><SlidersHorizontal className="w-4 h-4 group-hover:scale-110 transition-transform" suppressHydrationWarning /></button>
                 {showFilters && (
                     <div ref={filterRef} className="absolute top-full left-0 mt-3 w-72 md:w-96 glass p-5 rounded-2xl shadow-2xl border border-white/10 animate-in slide-in-from-top-2 fade-in duration-200 z-50">
                         <div className="flex justify-between items-center mb-4"><h3 className="font-semibold text-foreground flex items-center gap-2"><SlidersHorizontal className="w-4 h-4 text-primary" />Filtros</h3><button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"><XCircle className="w-3 h-3" /> Limpar</button></div>
