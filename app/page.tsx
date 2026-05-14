@@ -178,6 +178,18 @@ export default function Home() {
     }
   }
 
+  // --- Sync cross-device: se um filme some de favorites/seen no Firestore
+  // (ex.: o outro usuário removeu), reflete na grade sem precisar de F5. ---
+  useEffect(() => {
+    if (currentView !== "favorites" && currentView !== "seen") return
+    const sourceIds = currentView === "favorites" ? shared.favorites : shared.seen
+    setMovies((prev) => {
+      const sourceSet = new Set(sourceIds)
+      const filtered = prev.filter((m) => sourceSet.has(m.id))
+      return filtered.length === prev.length ? prev : filtered
+    })
+  }, [shared.favorites, shared.seen, currentView])
+
   // --- Carrega a view inicial salva (F5) — uma única vez ---
   useEffect(() => {
     if (initialViewLoaded.current) return
@@ -231,13 +243,21 @@ export default function Home() {
   const markAsSeen = (movieId: number) => {
     shared.updateFavorites(shared.favorites.filter((id) => id !== movieId))
     shared.updateSeen([...new Set([...shared.seen, movieId])])
+    setMovies((prev) => prev.filter((m) => m.id !== movieId))
+    toast.success("Filme marcado como visto")
   }
 
-  const removeFromFavorites = (movieId: number) =>
+  const removeFromFavorites = (movieId: number) => {
     shared.updateFavorites(shared.favorites.filter((id) => id !== movieId))
+    setMovies((prev) => prev.filter((m) => m.id !== movieId))
+    toast.success("Filme removido dos favoritos")
+  }
 
-  const removeFromSeen = (movieId: number) =>
+  const removeFromSeen = (movieId: number) => {
     shared.updateSeen(shared.seen.filter((id) => id !== movieId))
+    setMovies((prev) => prev.filter((m) => m.id !== movieId))
+    toast.success("Filme removido dos vistos")
+  }
 
   const toggleFavorite = (id: number) => {
     const isFavorited = shared.favorites.includes(id)
