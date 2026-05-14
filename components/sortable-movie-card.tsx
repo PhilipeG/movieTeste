@@ -8,12 +8,14 @@ import type { Movie } from "@/lib/tmdb"
 interface Props {
   movie: Movie
   rank?: number
+  onFavorite?: (id: number) => void
   onMarkAsSeen?: (id: number) => void
   onRemoveFromFavorites?: (id: number) => void
-  // ADICIONADO: A propriedade opcional para a roleta
+  onRemoveFromSeen?: (id: number) => void
   onAddToRoulette?: (movie: Movie) => void
   isFavorite: boolean
   onClick: () => void
+  ratings?: { anak?: number; silvio?: number }
 }
 
 export function SortableMovieCard(props: Props) {

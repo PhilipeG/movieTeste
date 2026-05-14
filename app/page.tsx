@@ -88,6 +88,9 @@ export default function Home() {
   const filterBtnRef = useRef<HTMLButtonElement>(null)
   const initialViewLoaded = useRef(false)
   const bannerLoaded = useRef(false)
+  // Snapshots de shared.favorites/seen para diff entre eventos do Firestore
+  const prevFavoritesRef = useRef<number[]>([])
+  const prevSeenRef = useRef<number[]>([])
 
   // --- Click outside para fechar popover de filtros ---
   useEffect(() => {
@@ -178,23 +181,14 @@ export default function Home() {
     }
   }
 
-  // --- Sync cross-device: se um filme some de favorites/seen no Firestore
-  // (ex.: o outro usuário removeu), reflete na grade sem precisar de F5. ---
-  useEffect(() => {
-    if (currentView !== "favorites" && currentView !== "seen") return
-    const sourceIds = currentView === "favorites" ? shared.favorites : shared.seen
-    setMovies((prev) => {
-      const sourceSet = new Set(sourceIds)
-      const filtered = prev.filter((m) => sourceSet.has(m.id))
-      return filtered.length === prev.length ? prev : filtered
-    })
-  }, [shared.favorites, shared.seen, currentView])
-
   // --- Carrega a view inicial salva (F5) — uma única vez ---
   useEffect(() => {
     if (initialViewLoaded.current) return
     if (!shared.loaded || !viewHydrated) return
     initialViewLoaded.current = true
+    // Prime snapshots para o sync effect rodar sem refetch duplicado
+    prevFavoritesRef.current = shared.favorites
+    prevSeenRef.current = shared.seen
 
     if (currentView === "favorites") {
       void loadProgressive(shared.favorites)
@@ -207,6 +201,49 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared.loaded, viewHydrated])
 
+  // --- Sync cross-device: diff entre snapshots do Firestore.
+  // IDs novos → fetch do TMDB e adiciona. IDs sumidos → filtra. Reordena. ---
+  useEffect(() => {
+    if (currentView !== "favorites" && currentView !== "seen") return
+    const sourceIds = currentView === "favorites" ? shared.favorites : shared.seen
+    const prevSource =
+      currentView === "favorites" ? prevFavoritesRef.current : prevSeenRef.current
+
+    const prevSet = new Set(prevSource)
+    const addedIds = sourceIds.filter((id) => !prevSet.has(id))
+
+    if (currentView === "favorites") prevFavoritesRef.current = sourceIds
+    else prevSeenRef.current = sourceIds
+
+    // Filter + reorder usando o cache local de Movies
+    setMovies((prev) => {
+      const map = new Map(prev.map((m) => [m.id, m]))
+      const reordered = sourceIds
+        .map((id) => map.get(id))
+        .filter((m): m is Movie => m !== undefined)
+      const orderChanged =
+        reordered.length !== prev.length ||
+        reordered.some((m, i) => m.id !== prev[i].id)
+      return orderChanged ? reordered : prev
+    })
+
+    if (addedIds.length === 0) return
+
+    let cancelled = false
+    loadByIds(addedIds, getMovieById).then((newMovies) => {
+      if (cancelled) return
+      setMovies((prev) => {
+        const byId = new Map([...prev, ...newMovies].map((m) => [m.id, m]))
+        return sourceIds
+          .map((id) => byId.get(id))
+          .filter((m): m is Movie => m !== undefined)
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [shared.favorites, shared.seen, currentView])
+
   // --- View switchers ---
   const displayPopularMovies = () => {
     setCurrentView("popular")
@@ -216,11 +253,13 @@ export default function Home() {
 
   const displayFavoriteMovies = () => {
     setCurrentView("favorites")
+    prevFavoritesRef.current = shared.favorites
     void loadProgressive(shared.favorites)
   }
 
   const displaySeenMovies = () => {
     setCurrentView("seen")
+    prevSeenRef.current = shared.seen
     void loadProgressive(shared.seen)
   }
 
@@ -317,7 +356,9 @@ export default function Home() {
         const newIndex = currentMovies.findIndex((item) => item.id === over.id)
         if (oldIndex === -1 || newIndex === -1) return currentMovies
         const newOrder = arrayMove(currentMovies, oldIndex, newIndex)
-        shared.updateFavorites(newOrder.map((movie) => movie.id))
+        const ids = newOrder.map((movie) => movie.id)
+        if (currentView === "favorites") shared.updateFavorites(ids)
+        else if (currentView === "seen") shared.updateSeen(ids)
         return newOrder
       })
     }
@@ -615,7 +656,7 @@ export default function Home() {
               <SortableContext
                 items={movies.map((m) => m.id)}
                 strategy={rectSortingStrategy}
-                disabled={currentView !== "favorites"}
+                disabled={currentView !== "favorites" && currentView !== "seen"}
               >
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {movies
@@ -642,7 +683,7 @@ export default function Home() {
                         )
                       if (currentView === "seen")
                         return (
-                          <MovieCard
+                          <SortableMovieCard
                             key={movie.id}
                             movie={movie}
                             onRemoveFromSeen={removeFromSeen}
