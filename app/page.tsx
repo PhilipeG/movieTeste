@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef, Fragment } from "react"
+import { useEffect, useState, useRef, useMemo, Fragment } from "react"
 import dynamic from "next/dynamic"
 import { Menu, MenuButton, MenuItems, MenuItem, Transition } from "@headlessui/react"
 import {
@@ -350,18 +350,26 @@ export default function Home() {
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
-    if (active && over && active.id !== over.id) {
-      setMovies((currentMovies) => {
-        const oldIndex = currentMovies.findIndex((item) => item.id === active.id)
-        const newIndex = currentMovies.findIndex((item) => item.id === over.id)
-        if (oldIndex === -1 || newIndex === -1) return currentMovies
-        const newOrder = arrayMove(currentMovies, oldIndex, newIndex)
-        const ids = newOrder.map((movie) => movie.id)
-        if (currentView === "favorites") shared.updateFavorites(ids)
-        else if (currentView === "seen") shared.updateSeen(ids)
-        return newOrder
-      })
-    }
+    if (!active || !over || active.id === over.id) return
+    if (currentView !== "favorites" && currentView !== "seen") return
+
+    const oldIndex = movies.findIndex((item) => item.id === active.id)
+    const newIndex = movies.findIndex((item) => item.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const newOrder = arrayMove(movies, oldIndex, newIndex)
+    const ids = newOrder.map((m) => m.id)
+
+    // Guard: se o resultado já corresponde ao Firestore, não escreve nada.
+    // Bloqueia loops causados por re-dispatches espúrios de onDragEnd.
+    const currentRemote = currentView === "favorites" ? shared.favorites : shared.seen
+    const sameAsRemote =
+      ids.length === currentRemote.length && ids.every((id, i) => id === currentRemote[i])
+    if (sameAsRemote) return
+
+    setMovies(newOrder)
+    if (currentView === "favorites") shared.updateFavorites(ids)
+    else shared.updateSeen(ids)
   }
 
   const handleSearch = async () => {
@@ -405,6 +413,9 @@ export default function Home() {
         return <Sparkles className="w-5 h-5 text-primary" suppressHydrationWarning />
     }
   }
+
+  // Items estáveis para o SortableContext — evita re-render do dnd-kit
+  const movieIds = useMemo(() => movies.map((m) => m.id), [movies])
 
   const genreOptions = genres.map((g) => ({ value: g.id.toString(), label: g.name }))
   const yearOptions = Array.from({ length: 50 }, (_, i) => {
@@ -654,7 +665,7 @@ export default function Home() {
           <>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext
-                items={movies.map((m) => m.id)}
+                items={movieIds}
                 strategy={rectSortingStrategy}
                 disabled={currentView !== "favorites" && currentView !== "seen"}
               >
