@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { Wheel } from "react-custom-roulette"
 import type { Movie } from "@/lib/tmdb"
-import { Sparkles, Trash2, Search, RotateCcw, AlertTriangle, Loader2, MapPin } from "lucide-react"
+import { Sparkles, Trash2, Search, RotateCcw, AlertTriangle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 interface Props {
@@ -122,7 +122,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
       <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
         <Sparkles className="w-16 h-16 mb-4 opacity-20" suppressHydrationWarning />
         <h3 className="text-xl font-semibold mb-2">A roleta está vazia</h3>
-        <p>Vá aos seus Favoritos e clique no botão "+" nos cards para adicionar filmes aqui.</p>
+        <p>Vá aos seus Favoritos e clique no botão &quot;+&quot; nos cards para adicionar filmes aqui.</p>
       </div>
     )
   }

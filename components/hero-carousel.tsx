@@ -12,17 +12,26 @@ interface Props {
 export default function HeroCarousel({ movies, onSelect }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isHovering, setIsHovering] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(false)
 
-  // Rotação automática a cada 10 segundos
   useEffect(() => {
-    if (movies.length <= 1 || isHovering) return
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
+    setReducedMotion(mq.matches)
+    const listener = (e: MediaQueryListEvent) => setReducedMotion(e.matches)
+    mq.addEventListener("change", listener)
+    return () => mq.removeEventListener("change", listener)
+  }, [])
+
+  // Rotação automática a cada 3s, pausada em hover e quando o usuário pede menos movimento
+  useEffect(() => {
+    if (movies.length <= 1 || isHovering || reducedMotion) return
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % movies.length)
     }, 3000)
 
     return () => clearInterval(interval)
-  }, [movies.length, isHovering])
+  }, [movies.length, isHovering, reducedMotion])
 
   if (movies.length === 0) return null
 
@@ -44,17 +53,19 @@ export default function HeroCarousel({ movies, onSelect }: Props) {
         >
           {movie.backdrop_path ? (
             <img
-              src={`https://image.tmdb.org/t/p/original${movie.backdrop_path}`}
+              src={`https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`}
               alt={movie.title}
+              loading={index === currentIndex ? "eager" : "lazy"}
               className="w-full h-full object-cover"
             />
           ) : (
             <div className="w-full h-full bg-secondary flex items-center justify-center">
-               <img 
-                 src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`} 
-                 className="h-full object-cover opacity-50 blur-sm" 
-                 alt={movie.title}
-               />
+              <img
+                src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
+                className="h-full object-cover opacity-50 blur-sm"
+                alt={movie.title}
+                loading="lazy"
+              />
             </div>
           )}
           {/* Gradiente Overlay */}

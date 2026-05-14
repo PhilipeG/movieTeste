@@ -45,7 +45,12 @@ export async function getSharedLists(): Promise<{
 
 // --- NOVA FUNÇÃO: ESCUTA EM TEMPO REAL ---
 export function subscribeToSharedLists(
-  callback: (data: { favorites: number[]; seen: number[]; roulette: number[] }) => void
+  callback: (data: {
+    favorites: number[]
+    seen: number[]
+    roulette: number[]
+    ratings: RatingsMap
+  }) => void
 ) {
   return onSnapshot(sharedListDocRef, (docSnap) => {
     if (docSnap.exists()) {
@@ -54,6 +59,7 @@ export function subscribeToSharedLists(
         favorites: data.favorites || [],
         seen: data.seen || [],
         roulette: data.roulette || [],
+        ratings: data.ratings || {},
       })
     }
   })
@@ -81,16 +87,7 @@ export async function getRatings(): Promise<RatingsMap> {
 }
 
 export async function updateMovieRating(movieId: number, person: "anak" | "silvio", rating: number) {
-  const currentRatings = await getRatings()
-  const movieRatings = currentRatings[movieId] || {}
-  const newRatings = {
-    ...currentRatings,
-    [movieId]: {
-      ...movieRatings,
-      [person]: rating,
-    },
-  }
-
-  await updateDoc(sharedListDocRef, { ratings: newRatings })
-  return newRatings
+  await updateDoc(sharedListDocRef, {
+    [`ratings.${movieId}.${person}`]: rating,
+  })
 }

@@ -51,8 +51,9 @@ export default function MovieCard({
       {/* poster COM EFEITO DE DESFOQUE NO HOVER */}
       {movie.poster_path ? (
         <img
-          src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+          src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
           alt={movie.title}
+          loading="lazy"
           onLoad={() => setIsImageLoaded(true)}
           className={`w-full h-full object-cover transition-all duration-500 ${
             isImageLoaded ? "opacity-100" : "opacity-0"

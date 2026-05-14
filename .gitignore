@@ -25,3 +25,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+._*
+
+# Firebase CLI
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# Test coverage
+coverage/
+*.lcov
