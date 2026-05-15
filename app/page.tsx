@@ -181,25 +181,31 @@ export default function Home() {
     }
   }
 
-  // --- Carrega a view inicial salva (F5) — uma única vez ---
+  // --- Carrega a view inicial salva (F5) — uma única vez.
+  // Para "popular", não espera Firestore (fetch TMDB pode rodar em paralelo).
+  // Para "favorites"/"seen", espera Firestore porque precisa dos IDs. ---
   useEffect(() => {
     if (initialViewLoaded.current) return
-    if (!shared.loaded || !viewHydrated) return
-    initialViewLoaded.current = true
-    // Prime snapshots para o sync effect rodar sem refetch duplicado
-    prevFavoritesRef.current = shared.favorites
-    prevSeenRef.current = shared.seen
+    if (!viewHydrated) return
 
-    if (currentView === "favorites") {
-      void loadProgressive(shared.favorites)
-    } else if (currentView === "seen") {
-      void loadProgressive(shared.seen)
-    } else if (currentView === "popular") {
+    if (currentView === "popular") {
+      initialViewLoaded.current = true
       void fetchMovies(true)
+      return
+    }
+
+    if (currentView === "favorites" || currentView === "seen") {
+      if (!shared.loaded) return
+      initialViewLoaded.current = true
+      // Prime snapshots para o sync effect rodar sem refetch duplicado
+      prevFavoritesRef.current = shared.favorites
+      prevSeenRef.current = shared.seen
+      const ids = currentView === "favorites" ? shared.favorites : shared.seen
+      void loadProgressive(ids)
     }
     // 'search' e 'roulette' não precisam de carregamento inicial
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shared.loaded, viewHydrated])
+  }, [shared.loaded, viewHydrated, currentView])
 
   // --- Sync cross-device: diff entre snapshots do Firestore.
   // IDs novos → fetch do TMDB e adiciona. IDs sumidos → filtra. Reordena. ---

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import Image from "next/image"
 import { getMovieImages, getMovieCertification, getMovieDetails } from "@/app/actions/tmdb"
 import type { Movie, MovieDetails, Genre, CastMember } from "@/lib/tmdb"
 import { X, Star, Clock, Calendar, Users, PlayCircle, User, ChevronLeft, ChevronRight, Heart } from "lucide-react"
@@ -179,12 +180,15 @@ export default function MovieModal({ movie, onClose, ratings, onRate, onToggleFa
           {images.length > 0 ? (
             <>
               {!isPosterLoaded && <div className="absolute inset-0 w-full h-full bg-secondary animate-pulse" />}
-              <img
+              <Image
                 key={images[currentImage]}
                 src={images[currentImage] || "/placeholder.svg"}
                 alt={movie.title}
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                priority
                 onLoad={() => setIsPosterLoaded(true)}
-                className={`w-full h-full object-contain transition-opacity duration-300 ${
+                className={`object-contain transition-opacity duration-300 ${
                   isPosterLoaded ? "opacity-100" : "opacity-0"
                 }`}
               />
@@ -389,10 +393,12 @@ export default function MovieModal({ movie, onClose, ratings, onRate, onToggleFa
               <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-300">
                 {images.map((img, i) => (
                   <div key={i} className="relative aspect-video group/item overflow-hidden rounded-lg">
-                    <img
+                    <Image
                       src={img || "/placeholder.svg"}
                       alt={`Galeria ${i}`}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover/item:scale-110 cursor-pointer"
+                      fill
+                      sizes="(max-width: 768px) 50vw, 250px"
+                      className="object-cover transition-transform duration-500 group-hover/item:scale-110 cursor-pointer"
                       onClick={() => setCurrentImage(i)}
                     />
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/item:opacity-100 transition-opacity pointer-events-none" />

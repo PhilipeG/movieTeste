@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
+import Image from "next/image"
 import type { Movie } from "@/lib/tmdb"
+import { prefetchMovieDetails } from "@/lib/prefetch"
 import { Heart, Check, X, Trash2, Star, Plus } from "lucide-react"
 
 interface Props {
@@ -39,23 +41,42 @@ export default function MovieCard({
   ratings,
 }: Props) {
   const [isImageLoaded, setIsImageLoaded] = useState(false)
+  const prefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleMouseEnter = () => {
+    // Hover sustentado por 200ms dispara o prefetch — evita gastar requests
+    // em mouseover rápido só passando por cima do card.
+    prefetchTimeoutRef.current = setTimeout(() => {
+      prefetchMovieDetails(movie.id)
+    }, 200)
+  }
+
+  const handleMouseLeave = () => {
+    if (prefetchTimeoutRef.current) {
+      clearTimeout(prefetchTimeoutRef.current)
+      prefetchTimeoutRef.current = null
+    }
+  }
 
   return (
     <div
       className="card-shine relative group w-full aspect-[2/3] rounded-xl overflow-hidden bg-card border border-border hover:border-primary/50 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/10 cursor-pointer"
       onClick={onClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* skeleton load */}
       {!isImageLoaded && <div className="absolute inset-0 w-full h-full bg-secondary animate-pulse" />}
 
       {/* poster COM EFEITO DE DESFOQUE NO HOVER */}
       {movie.poster_path ? (
-        <img
+        <Image
           src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
           alt={movie.title}
-          loading="lazy"
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16vw"
           onLoad={() => setIsImageLoaded(true)}
-          className={`w-full h-full object-cover transition-all duration-500 ${
+          className={`object-cover transition-all duration-500 ${
             isImageLoaded ? "opacity-100" : "opacity-0"
           } group-hover:blur-[3px]`}
         />

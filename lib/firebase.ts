@@ -1,5 +1,14 @@
 import { initializeApp } from "firebase/app"
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "firebase/firestore"
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  onSnapshot,
+} from "firebase/firestore"
 
 const firebaseConfig = {
   apiKey: "AIzaSyDC9yplwbk0jQI65AGT62XUqVOXxLZ8T78",
@@ -11,7 +20,15 @@ const firebaseConfig = {
 }
 
 const app = initializeApp(firebaseConfig)
-export const db = getFirestore(app)
+
+// IndexedDB persistence: F5 carrega snapshot do cache local instantaneamente,
+// sync com servidor acontece em background. persistentMultipleTabManager
+// permite múltiplas abas compartilharem o mesmo cache.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+})
 
 const sharedListDocRef = doc(db, "sharedLists", "mainList")
 

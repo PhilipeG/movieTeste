@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import type { Movie } from "@/lib/tmdb"
 import { Star, Calendar, PlayCircle } from "lucide-react"
 
@@ -52,20 +53,25 @@ export default function HeroCarousel({ movies, onSelect }: Props) {
           }`}
         >
           {movie.backdrop_path ? (
-            <img
+            <Image
               src={`https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`}
               alt={movie.title}
-              loading={index === currentIndex ? "eager" : "lazy"}
-              className="w-full h-full object-cover"
+              fill
+              priority={index === currentIndex}
+              sizes="100vw"
+              className="object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-secondary flex items-center justify-center">
-              <img
-                src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
-                className="h-full object-cover opacity-50 blur-sm"
-                alt={movie.title}
-                loading="lazy"
-              />
+            <div className="relative w-full h-full bg-secondary flex items-center justify-center">
+              {movie.poster_path && (
+                <Image
+                  src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
+                  alt={movie.title}
+                  fill
+                  sizes="100vw"
+                  className="object-cover opacity-50 blur-sm"
+                />
+              )}
             </div>
           )}
           {/* Gradiente Overlay */}
