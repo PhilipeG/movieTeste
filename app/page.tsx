@@ -353,23 +353,30 @@ export default function Home() {
     if (!active || !over || active.id === over.id) return
     if (currentView !== "favorites" && currentView !== "seen") return
 
-    const oldIndex = movies.findIndex((item) => item.id === active.id)
-    const newIndex = movies.findIndex((item) => item.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
+    // Fonte da verdade: shared.* (lista COMPLETA do Firestore).
+    // Nunca operar com `movies` (cache parcial) para evitar truncar a lista.
+    const currentIds = currentView === "favorites" ? shared.favorites : shared.seen
+    const oldIdx = currentIds.findIndex((id) => id === active.id)
+    const newIdx = currentIds.findIndex((id) => id === over.id)
+    if (oldIdx === -1 || newIdx === -1) return
 
-    const newOrder = arrayMove(movies, oldIndex, newIndex)
-    const ids = newOrder.map((m) => m.id)
+    const newIds = arrayMove(currentIds, oldIdx, newIdx)
 
-    // Guard: se o resultado já corresponde ao Firestore, não escreve nada.
-    // Bloqueia loops causados por re-dispatches espúrios de onDragEnd.
-    const currentRemote = currentView === "favorites" ? shared.favorites : shared.seen
+    // Guard: se a ordem já corresponde ao Firestore, não escreve nada.
     const sameAsRemote =
-      ids.length === currentRemote.length && ids.every((id, i) => id === currentRemote[i])
+      newIds.length === currentIds.length && newIds.every((id, i) => id === currentIds[i])
     if (sameAsRemote) return
 
-    setMovies(newOrder)
-    if (currentView === "favorites") shared.updateFavorites(ids)
-    else shared.updateSeen(ids)
+    // Update otimista no cache local — apenas para os items que estão carregados
+    setMovies((prev) => {
+      const ov = prev.findIndex((m) => m.id === active.id)
+      const nv = prev.findIndex((m) => m.id === over.id)
+      if (ov === -1 || nv === -1) return prev
+      return arrayMove(prev, ov, nv)
+    })
+
+    if (currentView === "favorites") shared.updateFavorites(newIds)
+    else shared.updateSeen(newIds)
   }
 
   const handleSearch = async () => {
