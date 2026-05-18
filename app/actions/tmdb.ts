@@ -56,6 +56,39 @@ export async function getMovieDetails(id: number): Promise<MovieDetails> {
   )
 }
 
+// Concorrência máxima de fetches paralelos ao TMDB por chamada (evita 429)
+const TMDB_CONCURRENCY = 25
+
+async function fulfilledOnly<T>(promises: Promise<T>[]): Promise<Awaited<T>[]> {
+  const results = await Promise.allSettled(promises)
+  const out: Awaited<T>[] = []
+  for (const r of results) {
+    if (r.status === "fulfilled") out.push(r.value)
+  }
+  return out
+}
+
+// Busca vários filmes numa ÚNICA server action — fetches rodam em paralelo
+// no servidor. Evita 1 round-trip HTTP por filme (que o Next serializa).
+export async function getMoviesByIds(ids: number[]): Promise<Movie[]> {
+  const out: Movie[] = []
+  for (let i = 0; i < ids.length; i += TMDB_CONCURRENCY) {
+    const slice = ids.slice(i, i + TMDB_CONCURRENCY)
+    out.push(...(await fulfilledOnly(slice.map((id) => getMovieById(id)))))
+  }
+  return out
+}
+
+// Idem, para os detalhes completos (usado nas estatísticas).
+export async function getMovieDetailsByIds(ids: number[]): Promise<MovieDetails[]> {
+  const out: MovieDetails[] = []
+  for (let i = 0; i < ids.length; i += TMDB_CONCURRENCY) {
+    const slice = ids.slice(i, i + TMDB_CONCURRENCY)
+    out.push(...(await fulfilledOnly(slice.map((id) => getMovieDetails(id)))))
+  }
+  return out
+}
+
 function getRandomPage(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }

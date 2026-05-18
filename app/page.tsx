@@ -7,11 +7,10 @@ import {
   getPopularMovies,
   searchMovies,
   getGenres,
-  getMovieById,
-  getMovieDetails,
+  getMoviesByIds,
+  getMovieDetailsByIds,
 } from "@/app/actions/tmdb"
 import type { Movie, Genre, MovieDetails } from "@/lib/tmdb"
-import { loadByIds } from "@/lib/movies-loader"
 import { useSharedLists } from "@/hooks/use-shared-lists"
 import { useSavedView } from "@/hooks/use-saved-view"
 import MovieCard from "@/components/movie-card"
@@ -124,7 +123,7 @@ export default function Home() {
       setRouletteMovies([])
       return
     }
-    loadByIds(shared.rouletteIds, getMovieById).then(setRouletteMovies)
+    getMoviesByIds(shared.rouletteIds).then(setRouletteMovies)
   }, [shared.rouletteIds])
 
   // --- Banner: carrega 5 aleatórios UMA VEZ (não re-embaralha a cada snapshot) ---
@@ -134,7 +133,7 @@ export default function Home() {
     if (sourceList.length === 0) return
     bannerLoaded.current = true
     const shuffled = [...sourceList].sort(() => 0.5 - Math.random())
-    loadByIds(shuffled.slice(0, 5), getMovieById).then(setBannerMovies)
+    getMoviesByIds(shuffled.slice(0, 5)).then(setBannerMovies)
   }, [shared.loaded, shared.favorites, shared.seen])
 
   // --- Helpers de carregamento ---
@@ -147,19 +146,16 @@ export default function Home() {
       return
     }
     setLoading(true)
-    const initial = await loadByIds(ids.slice(0, INITIAL_CHUNK), getMovieById)
+    // Primeira leva: 1 server action (fetches paralelos no servidor)
+    const initial = await getMoviesByIds(ids.slice(0, INITIAL_CHUNK))
     if (token !== loadTokenRef.current) return // carregamento obsoleto — descarta
     setMovies(initial)
     setLoading(false)
-    if (ids.length > INITIAL_CHUNK) {
-      // Anexa o resto em blocos, conforme cada bloco fica pronto —
-      // assim o "Ver mais" tem dados disponíveis muito antes.
-      loadByIds(ids.slice(INITIAL_CHUNK), getMovieById, {
-        onBatch: (batch) => {
-          if (token !== loadTokenRef.current) return // background obsoleto — descarta
-          setMovies((prev) => [...prev, ...batch])
-        },
-      }).catch(console.error)
+    // Resto em blocos, 1 server action por bloco, anexando incrementalmente
+    for (let i = INITIAL_CHUNK; i < ids.length; i += INITIAL_CHUNK) {
+      const chunk = await getMoviesByIds(ids.slice(i, i + INITIAL_CHUNK))
+      if (token !== loadTokenRef.current) return // bloco obsoleto — descarta
+      setMovies((prev) => [...prev, ...chunk])
     }
   }
 
@@ -251,7 +247,7 @@ export default function Home() {
     if (addedIds.length === 0) return
 
     let cancelled = false
-    loadByIds(addedIds, getMovieById).then((newMovies) => {
+    getMoviesByIds(addedIds).then((newMovies) => {
       if (cancelled) return
       setMovies((prev) => {
         const byId = new Map([...prev, ...newMovies].map((m) => [m.id, m]))
@@ -356,7 +352,7 @@ export default function Home() {
     if (seenMoviesDetails.length !== shared.seen.length && shared.seen.length > 0) {
       setStatsLoading(true)
       try {
-        const details = await loadByIds(shared.seen, getMovieDetails)
+        const details = await getMovieDetailsByIds(shared.seen)
         setSeenMoviesDetails(details)
       } finally {
         setStatsLoading(false)
