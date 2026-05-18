@@ -40,7 +40,7 @@ export default function HeroCarousel({ movies, onSelect }: Props) {
 
   return (
     <div 
-      className="relative w-full h-[300px] md:h-[450px] rounded-2xl overflow-hidden mb-10 group shadow-2xl border border-white/10"
+      className="relative w-full h-[300px] md:h-[450px] rounded-2xl overflow-hidden mb-10 group shadow-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >

@@ -173,10 +173,10 @@ export default function MovieModal({ movie, onClose, ratings, onRate, onToggleFa
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative glass rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden z-10 flex flex-col md:flex-row animate-in zoom-in-95 duration-200">
+      <div className="relative glass rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] md:h-[80vh] md:max-h-[680px] md:min-h-[480px] overflow-hidden z-10 flex flex-col md:flex-row animate-in zoom-in-95 duration-200">
         
         {/* Seção da Imagem (Esquerda) */}
-        <div className="w-full md:w-1/2 relative flex items-center justify-center bg-black/50 min-h-[300px] md:min-h-[500px] group/image">
+        <div className="relative w-full md:w-auto md:h-full aspect-[2/3] shrink-0 bg-black/50 group/image overflow-hidden">
           {images.length > 0 ? (
             <>
               {!isPosterLoaded && <div className="absolute inset-0 w-full h-full bg-secondary animate-pulse" />}
@@ -185,10 +185,10 @@ export default function MovieModal({ movie, onClose, ratings, onRate, onToggleFa
                 src={images[currentImage] || "/placeholder.svg"}
                 alt={movie.title}
                 fill
-                sizes="(max-width: 768px) 100vw, 50vw"
+                sizes="(max-width: 768px) 100vw, 40vw"
                 priority
                 onLoad={() => setIsPosterLoaded(true)}
-                className={`object-contain transition-opacity duration-300 ${
+                className={`object-cover transition-opacity duration-300 ${
                   isPosterLoaded ? "opacity-100" : "opacity-0"
                 }`}
               />
@@ -218,7 +218,7 @@ export default function MovieModal({ movie, onClose, ratings, onRate, onToggleFa
         </div>
 
         {/* Seção de Conteúdo (Direita) */}
-        <div className="w-full md:w-1/2 p-6 overflow-y-auto custom-scrollbar max-h-[50vh] md:max-h-[90vh] bg-background/60 backdrop-blur-xl relative">
+        <div className="w-full md:flex-1 p-6 overflow-y-auto custom-scrollbar max-h-[42vh] md:max-h-none md:h-full bg-background/60 backdrop-blur-xl relative">
           
           {/* BOTÕES FLUTUANTES (Fechar e Favoritar) */}
           <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">
