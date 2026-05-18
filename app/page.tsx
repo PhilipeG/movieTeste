@@ -88,6 +88,8 @@ export default function Home() {
   const filterBtnRef = useRef<HTMLButtonElement>(null)
   const initialViewLoaded = useRef(false)
   const bannerLoaded = useRef(false)
+  // Token de geração: invalida carregamentos assíncronos obsoletos (race condition)
+  const loadTokenRef = useRef(0)
   // Snapshots de shared.favorites/seen para diff entre eventos do Firestore
   const prevFavoritesRef = useRef<number[]>([])
   const prevSeenRef = useRef<number[]>([])
@@ -137,6 +139,7 @@ export default function Home() {
 
   // --- Helpers de carregamento ---
   const loadProgressive = async (ids: number[]) => {
+    const token = ++loadTokenRef.current
     setVisibleItemsCount(VISIBLE_PAGE)
     if (ids.length === 0) {
       setMovies([])
@@ -145,25 +148,35 @@ export default function Home() {
     }
     setLoading(true)
     const initial = await loadByIds(ids.slice(0, INITIAL_CHUNK), getMovieById)
+    if (token !== loadTokenRef.current) return // carregamento obsoleto — descarta
     setMovies(initial)
     setLoading(false)
     if (ids.length > INITIAL_CHUNK) {
-      loadByIds(ids.slice(INITIAL_CHUNK), getMovieById)
-        .then((rest) => setMovies((prev) => [...prev, ...rest]))
-        .catch(console.error)
+      // Anexa o resto em blocos, conforme cada bloco fica pronto —
+      // assim o "Ver mais" tem dados disponíveis muito antes.
+      loadByIds(ids.slice(INITIAL_CHUNK), getMovieById, {
+        onBatch: (batch) => {
+          if (token !== loadTokenRef.current) return // background obsoleto — descarta
+          setMovies((prev) => [...prev, ...batch])
+        },
+      }).catch(console.error)
     }
   }
 
   const fetchMovies = async (resetPage = true, filtersOverride?: Filters) => {
     const filters = filtersOverride ?? activeFilters
+    // resetPage = novo carregamento → bump do token. Paginação = continua o atual.
+    const token = resetPage ? ++loadTokenRef.current : loadTokenRef.current
     if (resetPage) {
       setLoading(true)
+      setLoadingMore(false)
       setCurrentPage(1)
     } else {
       setLoadingMore(true)
     }
     try {
       const data = await getPopularMovies(resetPage ? 1 : currentPage + 1, filters)
+      if (token !== loadTokenRef.current) return // carregamento obsoleto — descarta
       if (resetPage) {
         setMovies(data)
       } else {
@@ -174,10 +187,12 @@ export default function Home() {
         setCurrentPage((prev) => prev + 1)
       }
     } catch {
-      toast.error("Erro ao buscar filmes")
+      if (token === loadTokenRef.current) toast.error("Erro ao buscar filmes")
     } finally {
-      setLoading(false)
-      setLoadingMore(false)
+      if (token === loadTokenRef.current) {
+        setLoading(false)
+        setLoadingMore(false)
+      }
     }
   }
 
@@ -386,16 +401,18 @@ export default function Home() {
   }
 
   const handleSearch = async () => {
+    const token = ++loadTokenRef.current
     setLoading(true)
     setCurrentView("search")
     setCurrentPage(1)
     try {
       const results = search.trim() ? await searchMovies(search) : await getPopularMovies()
+      if (token !== loadTokenRef.current) return // carregamento obsoleto — descarta
       setMovies(results)
     } catch {
-      setMovies([])
+      if (token === loadTokenRef.current) setMovies([])
     } finally {
-      setLoading(false)
+      if (token === loadTokenRef.current) setLoading(false)
     }
   }
 
