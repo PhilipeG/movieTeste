@@ -82,7 +82,7 @@ export default function MovieCard({
         />
       ) : (
         <div className="h-full w-full flex items-center justify-center text-center bg-secondary p-4">
-          <h3 className="text-foreground font-bold text-sm">{movie.title}</h3>
+          <h3 className="font-display text-foreground font-bold text-base">{movie.title}</h3>
         </div>
       )}
 
@@ -140,7 +140,7 @@ export default function MovieCard({
             <span className="text-xs font-medium text-foreground">{movie.vote_average.toFixed(1)}</span>
           </div>
 
-          <h2 className="text-foreground text-sm font-semibold line-clamp-2">{movie.title}</h2>
+          <h2 className="font-display text-foreground text-base font-bold line-clamp-2">{movie.title}</h2>
 
           {/* botoes de açao originais */}
           <div className="flex gap-2">

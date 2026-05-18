@@ -80,6 +80,9 @@ export default function HeroCarousel({ movies, onSelect }: Props) {
         </div>
       ))}
 
+      {/* Vignette cinematográfica — escurece sutilmente as bordas */}
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_55%,rgba(0,0,0,0.55)_100%)]" />
+
       {/* Content Info */}
       <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full md:w-2/3 z-10 flex flex-col items-start gap-4">
         
@@ -89,7 +92,7 @@ export default function HeroCarousel({ movies, onSelect }: Props) {
         </span>
         {/* --------------------------------------------- */}
 
-        <h2 className="text-3xl md:text-5xl font-bold text-white drop-shadow-md line-clamp-2 transition-all duration-500">
+        <h2 className="font-display text-3xl md:text-5xl font-bold leading-snug py-2 text-white drop-shadow-md line-clamp-2 transition-all duration-500">
           {currentMovie.title}
         </h2>
 

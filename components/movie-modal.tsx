@@ -247,7 +247,7 @@ export default function MovieModal({ movie, onClose, ratings, onRate, onToggleFa
             )}
           </div>
 
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground pr-14 mb-2">{movie.title}</h2>
+          <h2 className="font-display text-2xl md:text-3xl font-bold leading-tight text-foreground pr-14 mb-2">{movie.title}</h2>
 
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-4">
             <span className="flex items-center gap-1 bg-secondary/30 px-2 py-1 rounded-md">
