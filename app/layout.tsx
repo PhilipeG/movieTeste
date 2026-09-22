@@ -1,6 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter, Mona_Sans } from "next/font/google"
+import { Inter, Mona_Sans, Great_Vibes } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
@@ -16,8 +16,15 @@ const monaSans = Mona_Sans({
   display: "swap",
 })
 
+const greatVibes = Great_Vibes({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-cursive",
+  display: "swap",
+})
+
 export const metadata: Metadata = {
-  title: "DashMovie - Sua Central de Filmes",
+  title: "Filmenak - Sua Central de Filmes",
   description: "Descubra, organize e acompanhe seus filmes favoritos",
   icons: {
     icon: "/cinema.ico",
@@ -36,7 +43,7 @@ export default function RootLayout({
 }>) {
   return (
     // Adicione o suppressHydrationWarning aqui:
-    <html lang="pt-BR" className={`dark ${inter.variable} ${monaSans.variable}`} suppressHydrationWarning>
+    <html lang="pt-BR" className={`dark ${inter.variable} ${monaSans.variable} ${greatVibes.variable}`} suppressHydrationWarning>
       <body className={`font-sans antialiased min-h-screen bg-background`}>
         {children}
         <Analytics />

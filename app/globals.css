@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -213,4 +213,321 @@
 
 .card-shine:hover::after {
   left: 100%;
+}
+
+/* StrokeText — título animado (letra cursiva sendo escrita) */
+.stroke-text {
+  display: inline-block;
+  line-height: 0;
+}
+
+.stroke-text--hover {
+  cursor: pointer;
+}
+
+.stroke-text__svg {
+  display: block;
+  height: var(--stroke-text-height, 160px);
+  width: auto;
+}
+
+.stroke-text__stroke,
+.stroke-text__fill {
+  user-select: none;
+}
+
+.stroke-text__svg {
+  transition: filter 1s ease;
+}
+
+.stroke-text__fill {
+  transition: fill 0.9s ease;
+}
+
+/* TargetCursor — cursor customizado com mira nos cards */
+.cursor-target,
+.cursor-target *,
+.cursor-target *::before,
+.cursor-target *::after {
+  cursor: none !important;
+}
+
+.target-cursor-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 2147483647;
+  mix-blend-mode: difference;
+  transform: translate(-50%, -50%);
+}
+
+.target-cursor-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  background: #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  will-change: transform;
+  transition: background-color 0.15s ease;
+}
+
+.target-cursor-corner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border: 3px solid #fff;
+  will-change: transform;
+  transition: border-color 0.15s ease;
+}
+
+.corner-tl {
+  transform: translate(-150%, -150%);
+  border-right: none;
+  border-bottom: none;
+}
+
+.corner-tr {
+  transform: translate(50%, -150%);
+  border-left: none;
+  border-bottom: none;
+}
+
+.corner-br {
+  transform: translate(50%, 50%);
+  border-left: none;
+  border-top: none;
+}
+
+.corner-bl {
+  transform: translate(-150%, 50%);
+  border-right: none;
+  border-top: none;
+}
+
+/* DriftWall — parede de pôsteres em 3D usada como fundo da página */
+.drift-wall {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  perspective: var(--dw-perspective, 1200px);
+  perspective-origin: 50% 50%;
+  --dw-tile-w: 200px;
+  --dw-tile-h: 132px;
+  --dw-gap: 18px;
+  --dw-radius: 14px;
+  --dw-lift: 64px;
+  --dw-dim: 0.55;
+  --dw-gray: 0;
+  --dw-overlay: #060010;
+  --dw-edge: 40%;
+  -webkit-mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 var(--dw-edge), transparent 100%),
+    linear-gradient(to top, #000 var(--dw-edge), transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 var(--dw-edge), transparent 100%),
+    linear-gradient(to top, #000 var(--dw-edge), transparent 100%);
+  mask-composite: intersect;
+}
+
+.drift-wall__plane {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: row;
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.drift-wall__col {
+  position: relative;
+  width: calc(var(--dw-tile-w) + var(--dw-gap));
+  transform-style: preserve-3d;
+}
+
+.drift-wall__track {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+  transform-style: preserve-3d;
+}
+
+.drift-wall__tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: calc(var(--dw-tile-h) + var(--dw-gap));
+  flex: 0 0 auto;
+  outline: none;
+  transform-style: preserve-3d;
+}
+
+.drift-wall__inner {
+  position: absolute;
+  inset: calc(var(--dw-gap) / 2);
+  display: block;
+  border-radius: var(--dw-radius);
+  overflow: hidden;
+  background: #0b0b12;
+  opacity: var(--dw-dim);
+  transform: translateZ(0);
+  pointer-events: none;
+  transition:
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.drift-wall__tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: grayscale(var(--dw-gray)) saturate(0.92);
+  transition: filter 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.drift-wall__overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--dw-overlay);
+  opacity: 0.42;
+  pointer-events: none;
+  transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.drift-wall__tile.is-active .drift-wall__inner,
+.drift-wall__tile:focus-visible .drift-wall__inner {
+  opacity: 1;
+  transform: translateZ(var(--dw-lift));
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.7);
+}
+
+.drift-wall__tile.is-active img,
+.drift-wall__tile:focus-visible img {
+  filter: grayscale(0) saturate(1.05);
+}
+
+.drift-wall__tile.is-active .drift-wall__overlay,
+.drift-wall__tile:focus-visible .drift-wall__overlay {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drift-wall__plane,
+  .drift-wall__track {
+    will-change: auto;
+  }
+}
+
+/* PosterRows — fileiras horizontais de pôsteres (fundo da tela de favoritos) */
+.poster-rows {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  perspective: var(--pr-perspective, 1200px);
+  perspective-origin: 50% 50%;
+  -webkit-mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 var(--pr-edge), transparent 100%),
+    linear-gradient(to top, #000 var(--pr-edge), transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    radial-gradient(ellipse 78% 82% at 50% 46%, #000 var(--pr-edge), transparent 100%),
+    linear-gradient(to top, #000 var(--pr-edge), transparent 100%);
+  mask-composite: intersect;
+}
+
+.poster-rows__plane {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.poster-rows__row {
+  position: relative;
+  height: calc(var(--pr-tile-h) + var(--pr-gap));
+  transform-style: preserve-3d;
+}
+
+.poster-rows__track {
+  display: flex;
+  flex-direction: row;
+  will-change: transform;
+  transform-style: preserve-3d;
+}
+
+.poster-rows__tile {
+  position: relative;
+  width: calc(var(--pr-tile-w) + var(--pr-gap));
+  height: calc(var(--pr-tile-h) + var(--pr-gap));
+  flex: 0 0 auto;
+}
+
+.poster-rows__inner {
+  position: absolute;
+  inset: calc(var(--pr-gap) / 2);
+  display: block;
+  border-radius: var(--pr-radius);
+  overflow: hidden;
+  background: #0b0b12;
+  opacity: var(--pr-dim);
+  pointer-events: none;
+}
+
+.poster-rows__tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: saturate(0.92);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.poster-rows__overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--pr-overlay);
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-rows__plane,
+  .poster-rows__track {
+    will-change: auto;
+  }
+}
+
+/* Fade de entrada das camadas de fundo animado — troca de view fluida */
+@keyframes bg-anim-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.bg-anim-fade {
+  animation: bg-anim-fade 1.1s ease both;
 }

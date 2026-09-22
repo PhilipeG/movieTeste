@@ -2,23 +2,17 @@
 
 import { useEffect, useState } from "react"
 
-const STORAGE_KEY = "dashmovie_view"
-
 export type ViewName = "popular" | "favorites" | "seen" | "search" | "roulette"
 
+// A view NÃO é mais persistida: todo acesso começa na página principal.
+// `hydrated` é mantido porque o page.tsx sincroniza o carregamento inicial nele.
 export function useSavedView() {
   const [view, setView] = useState<ViewName>("popular")
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) setView(saved as ViewName)
     setHydrated(true)
   }, [])
-
-  useEffect(() => {
-    if (hydrated) localStorage.setItem(STORAGE_KEY, view)
-  }, [view, hydrated])
 
   return { view, setView, hydrated }
 }

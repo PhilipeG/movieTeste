@@ -14,10 +14,15 @@ import type { Movie, Genre, MovieDetails } from "@/lib/tmdb"
 import { useSharedLists } from "@/hooks/use-shared-lists"
 import { useSavedView } from "@/hooks/use-saved-view"
 import MovieCard from "@/components/movie-card"
+import StrokeText from "@/components/stroke-text"
+import FilmReel from "@/components/film-reel"
+import TargetCursor from "@/components/target-cursor"
 import MovieModal from "@/components/movie-modal"
 import StatsModal from "@/components/stats-modal"
 import { SortableMovieCard } from "@/components/sortable-movie-card"
 import HeroCarousel from "@/components/hero-carousel"
+import DriftWall from "@/components/drift-wall"
+import PosterRows from "@/components/poster-rows"
 import { FilterSelect } from "@/components/filter-select"
 import {
   DndContext,
@@ -82,6 +87,7 @@ export default function Home() {
   const [showStats, setShowStats] = useState(false)
   const [statsLoading, setStatsLoading] = useState(false)
   const [seenMoviesDetails, setSeenMoviesDetails] = useState<MovieDetails[]>([])
+  const [wallMovies, setWallMovies] = useState<Movie[]>([])
 
   const filterRef = useRef<HTMLDivElement>(null)
   const filterBtnRef = useRef<HTMLButtonElement>(null)
@@ -116,6 +122,66 @@ export default function Home() {
       .then((data) => setGenres(data.filter((g) => g.name !== "Música")))
       .catch(console.error)
   }, [])
+
+  // --- Fundo (DriftWall): pôsteres populares carregados uma vez ---
+  // ~12 páginas (~240 filmes únicos) para preencher telas largas sem repetir pôster
+  useEffect(() => {
+    Promise.all(Array.from({ length: 12 }, (_, i) => getPopularMovies(i + 1)))
+      .then((pages) => {
+        const byId = new Map(pages.flat().filter((m) => m.poster_path).map((m) => [m.id, m]))
+        const unique = [...byId.values()]
+        // embaralha para não agrupar por popularidade/franquia
+        for (let i = unique.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1))
+          ;[unique[i], unique[j]] = [unique[j], unique[i]]
+        }
+        setWallMovies(unique)
+      })
+      .catch(console.error)
+  }, [])
+
+  // --- Fundo por view: favoritos/vistos usam os filmes das próprias listas ---
+  // Snapshot único por view (evita redistribuir a parede a cada chunk carregado)
+  const [viewWallMovies, setViewWallMovies] = useState<Movie[]>([])
+  useEffect(() => {
+    setViewWallMovies([])
+  }, [currentView])
+  useEffect(() => {
+    if (currentView !== "favorites" && currentView !== "seen") return
+    if (viewWallMovies.length > 0) return
+    const sourceIds = currentView === "favorites" ? shared.favorites : shared.seen
+    const withPosters = movies.filter((m) => m.poster_path)
+    if (withPosters.length === 0 || withPosters.length < Math.min(120, sourceIds.length)) return
+    const shuffled = [...withPosters]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+    // Lista pequena não preenche a parede sem repetir pôster — completa com
+    // populares (dedup por id); listas grandes (>=120) ficam 100% da própria lista
+    if (shuffled.length < 120) {
+      const ids = new Set(shuffled.map((m) => m.id))
+      for (const m of wallMovies) {
+        if (shuffled.length >= 200) break
+        if (!ids.has(m.id)) shuffled.push(m)
+      }
+    }
+    setViewWallMovies(shuffled)
+  }, [currentView, movies, viewWallMovies.length, shared.favorites, shared.seen, wallMovies])
+
+  const wallSource =
+    (currentView === "favorites" || currentView === "seen") && viewWallMovies.length >= 12
+      ? viewWallMovies
+      : wallMovies
+
+  const wallItems = useMemo(
+    () =>
+      wallSource.map((m) => ({
+        image: `https://image.tmdb.org/t/p/w185${m.poster_path}`,
+        title: m.title,
+      })),
+    [wallSource],
+  )
 
   // --- Hidrata rouletteMovies a partir de IDs ---
   useEffect(() => {
@@ -452,7 +518,71 @@ export default function Home() {
   return (
     <div className="min-h-screen pb-20" suppressHydrationWarning>
       <Toaster position="bottom-right" theme="dark" />
+      <TargetCursor
+        spinDuration={2}
+        hideDefaultCursor={false}
+        showOnTargetOnly
+        parallaxOn
+        hoverDuration={0.2}
+        cursorColor="#ffffff"
+        cursorColorOnTarget="var(--primary)"
+      />
       <div className="fixed inset-0 bg-gradient-to-br from-background via-background to-secondary/30 -z-10" />
+      {wallItems.length > 0 && (
+        <div className="fixed inset-0 -z-10 pointer-events-none" aria-hidden="true">
+          {/* Favoritos/Vistos ganham animação própria (fileiras horizontais, inclinação
+              oposta); o `key` remonta a camada e dispara o fade — troca fluida */}
+          {(currentView === "favorites" || currentView === "seen") && viewWallMovies.length >= 12 ? (
+            <div key={`rows-${currentView}`} className="absolute inset-0 bg-anim-fade">
+              <PosterRows
+                items={wallItems}
+                tileWidth={200}
+                tileHeight={300}
+                gap={40}
+                radius={12}
+                tilt={-10}
+                turn={6}
+                roll={-3}
+                perspective={1600}
+                depth={120}
+                speed={30}
+                variance={0.45}
+                fade={0.1}
+                dim={0.85}
+                overlayColor="#0f0f17"
+              />
+            </div>
+          ) : (
+            <div key="wall" className="absolute inset-0 bg-anim-fade">
+              <DriftWall
+                items={wallItems}
+                columns={8}
+                tileWidth={150}
+                tileHeight={225}
+                gap={36}
+                radius={12}
+                tilt={14}
+                turn={-12}
+                perspective={1200}
+                depth={120}
+                speed={26}
+                direction="up"
+                variance={0.45}
+                parallax={0}
+                lift={0}
+                fade={0.1}
+                dim={0.85}
+                overlayColor="#0f0f17"
+                pauseOnHover={false}
+                grayscale={false}
+                interactive={false}
+              />
+            </div>
+          )}
+          {/* vidro fosco por cima da parede de pôsteres */}
+          <div className="absolute inset-0 backdrop-blur-[6px] bg-background/55" />
+        </div>
+      )}
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent -z-10" />
 
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -461,12 +591,26 @@ export default function Home() {
             onClick={displayPopularMovies}
             className="cursor-pointer group flex items-center gap-3 mb-8 transition-transform hover:scale-105"
           >
-            <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 group-hover:bg-primary/20 transition-colors">
-              <Film className="w-8 h-8 text-primary" suppressHydrationWarning />
-            </div>
-            <h1 className="text-4xl font-bold text-foreground tracking-tight">
-              Dash<span className="text-primary">Movie</span>
-            </h1>
+            <FilmReel size={56} glowColor="color-mix(in srgb, var(--primary) 45%, transparent)" />
+            <StrokeText
+              text="Filmenak"
+              strokeColor="var(--primary)"
+              fillColor="var(--foreground)"
+              strokeWidth={1.5}
+              drawDuration={1.8}
+              fillDelay={0.2}
+              stagger={0.12}
+              ease="power2.out"
+              trigger="mount"
+              fillMode="wipe"
+              fontSize={60}
+              fontWeight={400}
+              letterSpacing={0}
+              fontFamily="var(--font-cursive)"
+              settleColor="var(--primary)"
+              settleDelay={0.35}
+              glowColor="color-mix(in srgb, var(--primary) 60%, transparent)"
+            />
           </button>
 
           <div className="flex flex-col items-center w-full max-w-xl gap-4">
