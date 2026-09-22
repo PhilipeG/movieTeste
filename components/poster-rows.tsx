@@ -96,7 +96,10 @@ const PosterRows = ({
     const unitW = tileWidth + gap
     const perRowNeeded = Math.max(3, Math.ceil((containerWidth * 1.6) / unitW))
     // Fileiras uniformes; usa itens extras sem reciclar quando existem
-    const perRow = Math.max(perRowNeeded, Math.min(Math.ceil(items.length / effectiveRows), perRowNeeded * 2))
+    const perRow = Math.max(
+      perRowNeeded,
+      Math.min(Math.ceil(items.length / effectiveRows), perRowNeeded * 2),
+    )
     const slots = perRow * effectiveRows
     const result: DriftWallItem[][] = Array.from({ length: effectiveRows }, () => [])
     for (let i = 0; i < slots; i++) {
@@ -126,8 +129,14 @@ const PosterRows = ({
   )
 
   useEffect(() => {
-    offsetsRef.current = rowMeta.map((meta, r) => meta.copyWidth * ((r * 0.37) % 1))
-    velocitiesRef.current = rowItems.map(() => 0)
+    // Preserva o deslocamento atual ao recalcular o layout (ver DriftWall)
+    const prevOffsets = offsetsRef.current
+    const prevVelocities = velocitiesRef.current
+    offsetsRef.current = rowMeta.map((meta, r) => {
+      const prev = prevOffsets[r]
+      return prev === undefined ? meta.copyWidth * ((r * 0.37) % 1) : prev % meta.copyWidth
+    })
+    velocitiesRef.current = rowItems.map((_, r) => prevVelocities[r] ?? 0)
   }, [rowMeta, rowItems])
 
   useEffect(() => {
@@ -161,7 +170,8 @@ const PosterRows = ({
         for (let r = 0; r < trackRefs.current.length; r++) {
           const el = trackRefs.current[r]
           const meta = rowMeta[r]
-          if (el && meta) el.style.transform = `translate3d(${-(offsetsRef.current[r] ?? 0)}px, 0, 0)`
+          if (el && meta)
+            el.style.transform = `translate3d(${-(offsetsRef.current[r] ?? 0)}px, 0, 0)`
         }
       }
 
@@ -193,7 +203,12 @@ const PosterRows = ({
   )
 
   return (
-    <div ref={containerRef} className={`poster-rows ${className}`.trim()} style={cssVars} aria-hidden="true">
+    <div
+      ref={containerRef}
+      className={`poster-rows ${className}`.trim()}
+      style={cssVars}
+      aria-hidden="true"
+    >
       <div ref={planeRef} className="poster-rows__plane">
         {rowItems.map((row, r) => {
           const meta = rowMeta[r]
@@ -210,7 +225,13 @@ const PosterRows = ({
                   row.map((item, itemIndex) => (
                     <div className="poster-rows__tile" key={`${r}-${copyIndex}-${itemIndex}`}>
                       <span className="poster-rows__inner">
-                        <img src={item.image} alt="" loading="lazy" decoding="async" draggable={false} />
+                        <img
+                          src={item.image}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          draggable={false}
+                        />
                         <span className="poster-rows__overlay" aria-hidden="true" />
                       </span>
                     </div>

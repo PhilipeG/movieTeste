@@ -93,14 +93,20 @@ function getRandomPage(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
+// Até quantos anos selecionados valem uma chamada por ano (resultado exato).
+// Acima disso, usa o intervalo inteiro e filtra — 1 chamada só.
+const MULTI_YEAR_PARALLEL = 6
+
 export async function getPopularMovies(
   page = 1,
-  filters?: { genreId?: string | null; year?: string | null; minRating?: number | null },
+  filters?: { genreIds?: string[]; years?: string[]; minRating?: number | null },
 ): Promise<Movie[]> {
-  const hasFilters = !!(filters?.genreId || filters?.year || filters?.minRating)
+  const genreIds = filters?.genreIds ?? []
+  const years = filters?.years ?? []
+  const hasFilters = genreIds.length > 0 || years.length > 0 || !!filters?.minRating
   const pageToUse = hasFilters ? page : page === 1 ? getRandomPage(1, 20) : page
 
-  const params: Record<string, string> = {
+  const baseParams: Record<string, string> = {
     page: pageToUse.toString(),
     sort_by: "popularity.desc",
     include_adult: "false",
@@ -108,16 +114,45 @@ export async function getPopularMovies(
     without_genres: "99,10770",
   }
 
-  if (filters?.genreId) params.with_genres = filters.genreId
-  if (filters?.year) params.primary_release_year = filters.year
-  if (filters?.minRating) params["vote_average.gte"] = filters.minRating.toString()
+  // "|" = OU (qualquer um dos gêneros); "," seria E (todos ao mesmo tempo)
+  if (genreIds.length) baseParams.with_genres = genreIds.join("|")
+  if (filters?.minRating) baseParams["vote_average.gte"] = filters.minRating.toString()
 
+  type Row = Movie & { adult?: boolean; popularity?: number }
   // Sem cache: queremos página aleatória diferente a cada F5 quando não há filtros
-  const data = await fetchTMDB<{ results: (Movie & { adult?: boolean })[] }>(
-    "/discover/movie",
-    params,
-  )
-  return data.results.filter((m) => !m.adult).slice(0, 18)
+  const fetchPage = (params: Record<string, string>) =>
+    fetchTMDB<{ results: Row[] }>("/discover/movie", params)
+
+  let results: Row[]
+  if (years.length === 0) {
+    results = (await fetchPage(baseParams)).results
+  } else if (years.length <= MULTI_YEAR_PARALLEL) {
+    // O TMDB só aceita um primary_release_year por chamada — uma por ano e junta
+    const pages = await fulfilledOnly(
+      years.map((y) => fetchPage({ ...baseParams, primary_release_year: y })),
+    )
+    results = pages.flatMap((p) => p.results)
+    results.sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
+  } else {
+    const sorted = [...years].sort()
+    const selected = new Set(years)
+    const data = await fetchPage({
+      ...baseParams,
+      "primary_release_date.gte": `${sorted[0]}-01-01`,
+      "primary_release_date.lte": `${sorted[sorted.length - 1]}-12-31`,
+    })
+    results = data.results.filter((m) => selected.has((m.release_date ?? "").slice(0, 4)))
+  }
+
+  const seen = new Set<number>()
+  const out: Movie[] = []
+  for (const m of results) {
+    if (m.adult || seen.has(m.id)) continue
+    seen.add(m.id)
+    out.push(m)
+    if (out.length === 18) break
+  }
+  return out
 }
 
 export async function searchMovies(query: string, page = 1): Promise<Movie[]> {

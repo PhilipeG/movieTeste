@@ -170,8 +170,16 @@ const DriftWall = ({
   }, [columnItems, speed, direction, variance])
 
   useEffect(() => {
-    offsetsRef.current = columnMeta.map((meta, c) => meta.copyHeight * ((c * 0.37) % 1))
-    velocitiesRef.current = columnItems.map(() => 0)
+    // Recalcular colunas (resize, zoom, barra de rolagem sumindo) NÃO pode
+    // teleportar a parede de volta ao início: preserva o deslocamento atual de
+    // cada coluna, ajustado ao novo período, e só inicializa as colunas novas.
+    const prevOffsets = offsetsRef.current
+    const prevVelocities = velocitiesRef.current
+    offsetsRef.current = columnMeta.map((meta, c) => {
+      const prev = prevOffsets[c]
+      return prev === undefined ? meta.copyHeight * ((c * 0.37) % 1) : prev % meta.copyHeight
+    })
+    velocitiesRef.current = columnItems.map((_, c) => prevVelocities[c] ?? 0)
   }, [columnMeta, columnItems])
 
   const applyPlaneTransform = useCallback(
@@ -221,7 +229,8 @@ const DriftWall = ({
         for (let c = 0; c < trackRefs.current.length; c++) {
           const el = trackRefs.current[c]
           const meta = columnMeta[c]
-          if (el && meta) el.style.transform = `translate3d(0, ${-(offsetsRef.current[c] ?? 0)}px, 0)`
+          if (el && meta)
+            el.style.transform = `translate3d(0, ${-(offsetsRef.current[c] ?? 0)}px, 0)`
         }
       }
 
@@ -291,13 +300,31 @@ const DriftWall = ({
         "--dw-edge": `${Math.max(0, (1 - fade) * 100)}%`,
         ...style,
       }) as CSSProperties,
-    [tileWidth, tileHeight, gap, radius, perspective, lift, dim, grayscale, overlayColor, fade, style],
+    [
+      tileWidth,
+      tileHeight,
+      gap,
+      radius,
+      perspective,
+      lift,
+      dim,
+      grayscale,
+      overlayColor,
+      fade,
+      style,
+    ],
   )
 
   const renderTile = (item: DriftWallItem, id: string, colIndex: number) => {
     const inner = (
       <span className="drift-wall__inner">
-        <img src={item.image} alt={item.title ?? ""} loading="lazy" decoding="async" draggable={false} />
+        <img
+          src={item.image}
+          alt={item.title ?? ""}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+        />
         <span className="drift-wall__overlay" aria-hidden="true" />
       </span>
     )
@@ -329,7 +356,9 @@ const DriftWall = ({
     )
   }
 
-  const rootClass = ["drift-wall", reduced ? "drift-wall--reduced" : "", className].filter(Boolean).join(" ")
+  const rootClass = ["drift-wall", reduced ? "drift-wall--reduced" : "", className]
+    .filter(Boolean)
+    .join(" ")
 
   return (
     <div
@@ -358,7 +387,9 @@ const DriftWall = ({
                 }}
               >
                 {copies.map((_, copyIndex) =>
-                  col.map((item, itemIndex) => renderTile(item, `${c}-${copyIndex}-${itemIndex}`, c)),
+                  col.map((item, itemIndex) =>
+                    renderTile(item, `${c}-${copyIndex}-${itemIndex}`, c),
+                  ),
                 )}
               </div>
             </div>

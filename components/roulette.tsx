@@ -4,7 +4,9 @@ import { memo, useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Image from "next/image"
 import type { Movie } from "@/lib/tmdb"
 import {
-  Sparkles,
+  Dices,
+  Clapperboard,
+  Crown,
   Trash2,
   Search,
   RotateCcw,
@@ -13,6 +15,8 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { toast } from "sonner"
+import Mascot from "@/components/mascot"
+import { playTick, primeAudio } from "@/lib/roulette-sound"
 
 interface Props {
   movies: Movie[]
@@ -29,6 +33,7 @@ const PAN_DURATION_MS = 450
 const STRIP_LEN = 60 // total de cards na fita do sorteio
 const WINNER_POS = 52 // posição do vencedor (alguns cards antes do fim, pra parar com drama)
 const SPIN_DURATION = 5500 // ms da animação
+const MIN_TICK_GAP_MS = 45 // intervalo mínimo entre estalos
 
 const PosterCard = memo(function PosterCard({
   movie,
@@ -38,10 +43,7 @@ const PosterCard = memo(function PosterCard({
   highlight: boolean
 }) {
   return (
-    <div
-      className="shrink-0 flex flex-col items-center gap-1.5"
-      style={{ width: CARD_W }}
-    >
+    <div className="shrink-0 flex flex-col items-center gap-1.5" style={{ width: CARD_W }}>
       <div
         className={`relative w-full aspect-[2/3] rounded-lg overflow-hidden bg-card border transition-all duration-300 ${
           highlight
@@ -105,6 +107,11 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
 
+  // --- Som (tique a cada card que cruza o marcador, estilo abertura de caixa) ---
+  const lastTickIdxRef = useRef<number | null>(null)
+  const lastTickAtRef = useRef(0)
+  const spinStartRef = useRef(0)
+
   // Limites do translateX pra navegação manual (setas)
   const getPanBounds = useCallback(() => {
     const viewportW = viewportRef.current?.clientWidth ?? 768
@@ -135,10 +142,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   const canPanLeft = translateX < maxTx
   const canPanRight = translateX > minTx
 
-  const validMovies = useMemo(
-    () => movies.filter((m) => m && m.title),
-    [movies],
-  )
+  const validMovies = useMemo(() => movies.filter((m) => m && m.title), [movies])
 
   // Lista "estável" — não muda durante um sorteio
   const [stableMovies, setStableMovies] = useState(validMovies)
@@ -159,9 +163,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   const [strip, setStrip] = useState<Movie[]>(() => previewStrip)
 
   // Snapshot dos IDs da lista pra detectar adições/remoções no useEffect abaixo
-  const prevStripIdsRef = useRef<Set<number>>(
-    new Set(stableMovies.map((m) => m.id)),
-  )
+  const prevStripIdsRef = useRef<Set<number>>(new Set(stableMovies.map((m) => m.id)))
 
   // Constrói uma fita com `centerMovie` exatamente em WINNER_POS:
   // - nenhum filme se repete em janela curta (lookback de até 3 cards) —
@@ -185,15 +187,11 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
 
       // Tenta excluir o conjunto "desejado"; se ficar sem opção, relaxa pra
       // apenas o "estrito" (mínimo: evitar adjacência); último recurso: qualquer.
-      const pickExcluding = (
-        desiredIds: Set<number>,
-        strictIds: Set<number>,
-      ): Movie => {
+      const pickExcluding = (desiredIds: Set<number>, strictIds: Set<number>): Movie => {
         const pool = stableMovies.filter((m) => !desiredIds.has(m.id))
         if (pool.length > 0) return pool[Math.floor(Math.random() * pool.length)]
         const fallback = stableMovies.filter((m) => !strictIds.has(m.id))
-        if (fallback.length > 0)
-          return fallback[Math.floor(Math.random() * fallback.length)]
+        if (fallback.length > 0) return fallback[Math.floor(Math.random() * fallback.length)]
         return stableMovies[Math.floor(Math.random() * stableMovies.length)]
       }
 
@@ -245,12 +243,8 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
     if (isSpinning) return
 
     const currentIds = new Set(stableMovies.map((m) => m.id))
-    const newIds = [...currentIds].filter(
-      (id) => !prevStripIdsRef.current.has(id),
-    )
-    const removedAny = [...prevStripIdsRef.current].some(
-      (id) => !currentIds.has(id),
-    )
+    const newIds = [...currentIds].filter((id) => !prevStripIdsRef.current.has(id))
+    const removedAny = [...prevStripIdsRef.current].some((id) => !currentIds.has(id))
     prevStripIdsRef.current = currentIds
 
     if (newIds.length > 0) {
@@ -259,8 +253,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
       const newestMovie = stableMovies.find((m) => m.id === newestId)
       if (newestMovie) {
         const viewportW = viewportRef.current?.clientWidth ?? 768
-        const targetX =
-          -(WINNER_POS * TOTAL_CARD) + viewportW / 2 - CARD_W / 2
+        const targetX = -(WINNER_POS * TOTAL_CARD) + viewportW / 2 - CARD_W / 2
         setIsPanning(false)
         setStrip(buildStripWith(newestMovie))
         setTranslateX(targetX)
@@ -275,10 +268,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   }, [stableMovies, isSpinning, previewStrip, buildStripWith])
 
   const filteredMovies = useMemo(
-    () =>
-      validMovies.filter((m) =>
-        m.title.toLowerCase().includes(searchTerm.toLowerCase()),
-      ),
+    () => validMovies.filter((m) => m.title.toLowerCase().includes(searchTerm.toLowerCase())),
     [validMovies, searchTerm],
   )
 
@@ -313,11 +303,21 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
       const idx = Math.floor(offset / TOTAL_CARD)
       const within = offset - idx * TOTAL_CARD
       // Só destaca quando o marcador está sobre o card (não no gap entre eles)
-      const next =
-        idx >= 0 && idx < STRIP_LEN && within >= 0 && within <= CARD_W
-          ? idx
-          : null
+      const next = idx >= 0 && idx < STRIP_LEN && within >= 0 && within <= CARD_W ? idx : null
       setCenterIdx((prev) => (prev === next ? prev : next))
+
+      // Um tique por card que cruza o marcador. Como a fita desacelera, os
+      // tiques rareiam sozinhos — e ficam mais graves/encorpados no fim.
+      if (isSpinning && next !== null && next !== lastTickIdxRef.current) {
+        lastTickIdxRef.current = next
+        const now = performance.now()
+        // No arranque os cards passam a cada ~17ms: sem um intervalo mínimo os
+        // tiques viram um zumbido contínuo em vez de estalos distintos
+        if (now - lastTickAtRef.current >= MIN_TICK_GAP_MS) {
+          lastTickAtRef.current = now
+          playTick(Math.min(1, (now - spinStartRef.current) / SPIN_DURATION))
+        }
+      }
     }
 
     compute()
@@ -336,9 +336,14 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   const handleSpin = useCallback(() => {
     if (isSpinning || stableMovies.length < 2) return
 
+    // Dentro do clique: libera o áudio (política de autoplay dos navegadores)
+    primeAudio()
+    lastTickIdxRef.current = null
+    lastTickAtRef.current = 0
+    spinStartRef.current = performance.now()
+
     // Sorteia o vencedor e constrói a fita com ele em WINNER_POS
-    const winnerMovie =
-      stableMovies[Math.floor(Math.random() * stableMovies.length)]
+    const winnerMovie = stableMovies[Math.floor(Math.random() * stableMovies.length)]
     const newStrip = buildStripWith(winnerMovie)
 
     // Reseta posição instantaneamente (sem transition) e troca a fita
@@ -352,8 +357,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
         const viewportW = viewportRef.current?.clientWidth ?? 768
         // Jitter pequeno pra não cair exatamente no centro toda vez (mais realista)
         const jitter = (Math.random() - 0.5) * (CARD_W * 0.5)
-        const target =
-          -(WINNER_POS * TOTAL_CARD) + viewportW / 2 - CARD_W / 2 + jitter
+        const target = -(WINNER_POS * TOTAL_CARD) + viewportW / 2 - CARD_W / 2 + jitter
         setIsSpinning(true)
         setTranslateX(target)
       })
@@ -370,11 +374,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
   // Ctrl+Z: desfaz o último sorteio (remove da roleta)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      )
-        return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && lastSpunMovie) {
         e.preventDefault()
         handleRemoveAnimated(lastSpunMovie.id)
@@ -388,24 +388,20 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
 
   // Se o "último sorteado" foi removido por outro lado, limpa
   useEffect(() => {
-    if (
-      lastSpunMovie &&
-      !validMovies.find((m) => m.id === lastSpunMovie.id)
-    ) {
+    if (lastSpunMovie && !validMovies.find((m) => m.id === lastSpunMovie.id)) {
       setLastSpunMovie(null)
     }
   }, [validMovies, lastSpunMovie])
-
 
   // ESTADO VAZIO
   if (stableMovies.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
-        <Sparkles className="w-16 h-16 mb-4 opacity-20" suppressHydrationWarning />
+        <Mascot size={200} className="mb-2" />
         <h3 className="text-xl font-semibold mb-2">A roleta está vazia</h3>
         <p>
-          Vá aos seus Favoritos e clique no botão &quot;+&quot; nos cards para
-          adicionar filmes aqui.
+          Vá aos seus Favoritos e clique no botão &quot;+&quot; nos cards para adicionar filmes
+          aqui.
         </p>
       </div>
     )
@@ -417,10 +413,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
     return (
       <div className="flex flex-col md:flex-row items-center justify-center gap-12 py-12">
         <div className="flex flex-col items-center justify-center w-80 h-80 rounded-full border-4 border-dashed border-muted-foreground/30 bg-secondary/20 p-8 text-center">
-          <AlertTriangle
-            className="w-12 h-12 text-yellow-500 mb-4"
-            suppressHydrationWarning
-          />
+          <AlertTriangle className="w-12 h-12 text-yellow-500 mb-4" suppressHydrationWarning />
           <h3 className="text-lg font-bold text-foreground mb-2">Falta pouco!</h3>
           <p className="text-sm text-muted-foreground">
             Adicione mais <b>1 filme</b> para a roleta poder sortear.
@@ -428,16 +421,11 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
         </div>
         <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-xl flex flex-col max-h-[500px]">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <Sparkles
-              className="w-5 h-5 text-yellow-500"
-              suppressHydrationWarning
-            />
+            <Clapperboard className="w-5 h-5 text-yellow-500" suppressHydrationWarning />
             Filmes (1)
           </h3>
           <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 text-foreground group">
-            <span className="text-sm font-medium truncate flex-1 pr-4">
-              {singleMovie.title}
-            </span>
+            <span className="text-sm font-medium truncate flex-1 pr-4">{singleMovie.title}</span>
             <button
               onClick={() => onRemoveMovie(singleMovie.id)}
               className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors opacity-0 group-hover:opacity-100"
@@ -475,11 +463,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
             }}
           >
             {strip.map((movie, i) => (
-              <PosterCard
-                key={`${movie.id}-${i}`}
-                movie={movie}
-                highlight={i === centerIdx}
-              />
+              <PosterCard key={`${movie.id}-${i}`} movie={movie} highlight={i === centerIdx} />
             ))}
           </div>
         </div>
@@ -541,7 +525,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
           disabled={isSpinning || stableMovies.length < 2}
           className="cursor-pointer group flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-10 py-3.5 rounded-2xl font-bold text-lg shadow-[0_0_24px_4px] shadow-primary/40 hover:shadow-primary/60 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
         >
-          <Sparkles
+          <Dices
             className="w-5 h-5 group-hover:rotate-12 transition-transform"
             suppressHydrationWarning
           />
@@ -550,8 +534,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
         {lastSpunMovie && !isSpinning && (
           <div className="text-xs text-muted-foreground flex items-center gap-1 animate-in fade-in duration-300">
             <RotateCcw className="w-3 h-3" suppressHydrationWarning />
-            Ctrl+Z: remover{" "}
-            <b className="text-primary">{lastSpunMovie.title}</b> da roleta
+            Ctrl+Z: remover <b className="text-primary">{lastSpunMovie.title}</b> da roleta
           </div>
         )}
       </div>
@@ -559,10 +542,7 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
       {/* Painel da lista de filmes (busca + remove) */}
       <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-xl flex flex-col max-h-[500px]">
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 shrink-0">
-          <Sparkles
-            className="w-5 h-5 text-yellow-500"
-            suppressHydrationWarning
-          />
+          <Clapperboard className="w-5 h-5 text-yellow-500" suppressHydrationWarning />
           Filmes ({validMovies.length})
         </h3>
 
@@ -604,29 +584,26 @@ export default function Roulette({ movies, onSpinEnd, onRemoveMovie }: Props) {
                   <div
                     className={`flex items-center justify-between p-3 rounded-lg group/item ${containerClasses}`}
                   >
-                      <span className="text-sm font-medium truncate flex-1 pr-4 flex items-center gap-1">
-                        {isLastSpun && (
-                          <Sparkles
-                            className="w-3 h-3 text-primary shrink-0"
-                            suppressHydrationWarning
-                          />
-                        )}
-                        <span className="truncate">{movie.title}</span>
-                      </span>
-                      <button
-                        onClick={() => handleRemoveAnimated(movie.id)}
-                        disabled={isRemoving}
-                        className={`p-1.5 rounded-md transition-colors opacity-0 group-hover/item:opacity-100 ${
-                          isLastSpun
-                            ? "text-primary hover:text-destructive hover:bg-destructive/10"
-                            : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        }`}
-                        title="Remover da roleta"
-                      >
-                        <Trash2 className="w-4 h-4" suppressHydrationWarning />
-                      </button>
-                    </div>
+                    <span className="text-sm font-medium truncate flex-1 pr-4 flex items-center gap-1">
+                      {isLastSpun && (
+                        <Crown className="w-3 h-3 text-primary shrink-0" suppressHydrationWarning />
+                      )}
+                      <span className="truncate">{movie.title}</span>
+                    </span>
+                    <button
+                      onClick={() => handleRemoveAnimated(movie.id)}
+                      disabled={isRemoving}
+                      className={`p-1.5 rounded-md transition-colors opacity-0 group-hover/item:opacity-100 ${
+                        isLastSpun
+                          ? "text-primary hover:text-destructive hover:bg-destructive/10"
+                          : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      }`}
+                      title="Remover da roleta"
+                    >
+                      <Trash2 className="w-4 h-4" suppressHydrationWarning />
+                    </button>
                   </div>
+                </div>
               )
             })
           ) : (

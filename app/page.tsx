@@ -37,9 +37,9 @@ import {
   Search,
   MenuIcon,
   Film,
+  Flame,
   Heart,
   Eye,
-  Sparkles,
   Trophy,
   BarChart2,
   PlusCircle,
@@ -63,8 +63,10 @@ const Roulette = dynamic(() => import("@/components/roulette"), {
 const INITIAL_CHUNK = 36
 const VISIBLE_PAGE = 18
 
-type Filters = { genreId: string | null; year: string | null; minRating: number | null }
-const EMPTY_FILTERS: Filters = { genreId: null, year: null, minRating: null }
+type Filters = { genreIds: string[]; years: string[]; minRating: number | null }
+const EMPTY_FILTERS: Filters = { genreIds: [], years: [], minRating: null }
+const hasActiveFilters = (f: Filters) =>
+  f.genreIds.length > 0 || f.years.length > 0 || !!f.minRating
 
 export default function Home() {
   // --- Estado compartilhado (Firestore + localStorage) ---
@@ -128,7 +130,12 @@ export default function Home() {
   useEffect(() => {
     Promise.all(Array.from({ length: 12 }, (_, i) => getPopularMovies(i + 1)))
       .then((pages) => {
-        const byId = new Map(pages.flat().filter((m) => m.poster_path).map((m) => [m.id, m]))
+        const byId = new Map(
+          pages
+            .flat()
+            .filter((m) => m.poster_path)
+            .map((m) => [m.id, m]),
+        )
         const unique = [...byId.values()]
         // embaralha para não agrupar por popularidade/franquia
         for (let i = unique.length - 1; i > 0; i--) {
@@ -140,47 +147,77 @@ export default function Home() {
       .catch(console.error)
   }, [])
 
-  // --- Fundo por view: favoritos/vistos usam os filmes das próprias listas ---
-  // Snapshot único por view (evita redistribuir a parede a cada chunk carregado)
-  const [viewWallMovies, setViewWallMovies] = useState<Movie[]>([])
+  // --- Fundo por view: favoritos/vistos usam os filmes das próprias listas,
+  // PRÉ-CARREGADOS no startup (getMovieById tem cache de 1 dia no servidor, então
+  // não duplica custo com a grade). Assim a troca de view mostra a animação certa
+  // de imediato, sem passar pela animação da principal ---
+  const [favWall, setFavWall] = useState<Movie[]>([])
+  const [seenWall, setSeenWall] = useState<Movie[]>([])
+  const wallPrefetchStarted = useRef(false)
   useEffect(() => {
-    setViewWallMovies([])
-  }, [currentView])
-  useEffect(() => {
-    if (currentView !== "favorites" && currentView !== "seen") return
-    if (viewWallMovies.length > 0) return
-    const sourceIds = currentView === "favorites" ? shared.favorites : shared.seen
-    const withPosters = movies.filter((m) => m.poster_path)
-    if (withPosters.length === 0 || withPosters.length < Math.min(120, sourceIds.length)) return
-    const shuffled = [...withPosters]
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-    }
-    // Lista pequena não preenche a parede sem repetir pôster — completa com
-    // populares (dedup por id); listas grandes (>=120) ficam 100% da própria lista
-    if (shuffled.length < 120) {
-      const ids = new Set(shuffled.map((m) => m.id))
-      for (const m of wallMovies) {
-        if (shuffled.length >= 200) break
-        if (!ids.has(m.id)) shuffled.push(m)
+    if (wallPrefetchStarted.current || !shared.loaded || wallMovies.length === 0) return
+    wallPrefetchStarted.current = true
+    const prep = (list: Movie[]) => {
+      const shuffled = list.filter((m) => m.poster_path)
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
       }
+      // Lista pequena não preenche a parede sem repetir pôster — completa com
+      // populares (dedup por id); listas grandes (>=120) ficam 100% da própria lista
+      if (shuffled.length < 120) {
+        const ids = new Set(shuffled.map((m) => m.id))
+        for (const m of wallMovies) {
+          if (shuffled.length >= 200) break
+          if (!ids.has(m.id)) shuffled.push(m)
+        }
+      }
+      return shuffled
     }
-    setViewWallMovies(shuffled)
-  }, [currentView, movies, viewWallMovies.length, shared.favorites, shared.seen, wallMovies])
+    // Sequencial (evita 429 do TMDB), priorizando a view em que o usuário está
+    const order: Array<[number[], (ms: Movie[]) => void]> =
+      currentView === "seen"
+        ? [
+            [shared.seen, (ms) => setSeenWall(prep(ms))],
+            [shared.favorites, (ms) => setFavWall(prep(ms))],
+          ]
+        : [
+            [shared.favorites, (ms) => setFavWall(prep(ms))],
+            [shared.seen, (ms) => setSeenWall(prep(ms))],
+          ]
+    ;(async () => {
+      for (const [ids, apply] of order) {
+        if (ids.length === 0) continue
+        try {
+          apply(await getMoviesByIds(ids))
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    })()
+  }, [shared.loaded, shared.favorites, shared.seen, wallMovies, currentView])
 
-  const wallSource =
-    (currentView === "favorites" || currentView === "seen") && viewWallMovies.length >= 12
-      ? viewWallMovies
-      : wallMovies
+  const isRowsView = currentView === "favorites" || currentView === "seen"
+  const rowsWall = useMemo(
+    () => (currentView === "favorites" ? favWall : currentView === "seen" ? seenWall : []),
+    [currentView, favWall, seenWall],
+  )
 
   const wallItems = useMemo(
     () =>
-      wallSource.map((m) => ({
+      wallMovies.map((m) => ({
         image: `https://image.tmdb.org/t/p/w185${m.poster_path}`,
         title: m.title,
       })),
-    [wallSource],
+    [wallMovies],
+  )
+  const rowsItems = useMemo(
+    () =>
+      rowsWall.map((m) => ({
+        image: `https://image.tmdb.org/t/p/w185${m.poster_path}`,
+        title: m.title,
+      })),
+    [rowsWall],
   )
 
   // --- Hidrata rouletteMovies a partir de IDs ---
@@ -289,8 +326,7 @@ export default function Home() {
   useEffect(() => {
     if (currentView !== "favorites" && currentView !== "seen") return
     const sourceIds = currentView === "favorites" ? shared.favorites : shared.seen
-    const prevSource =
-      currentView === "favorites" ? prevFavoritesRef.current : prevSeenRef.current
+    const prevSource = currentView === "favorites" ? prevFavoritesRef.current : prevSeenRef.current
 
     const prevSet = new Set(prevSource)
     const addedIds = sourceIds.filter((id) => !prevSet.has(id))
@@ -305,8 +341,7 @@ export default function Home() {
         .map((id) => map.get(id))
         .filter((m): m is Movie => m !== undefined)
       const orderChanged =
-        reordered.length !== prev.length ||
-        reordered.some((m, i) => m.id !== prev[i].id)
+        reordered.length !== prev.length || reordered.some((m, i) => m.id !== prev[i].id)
       return orderChanged ? reordered : prev
     })
 
@@ -317,9 +352,7 @@ export default function Home() {
       if (cancelled) return
       setMovies((prev) => {
         const byId = new Map([...prev, ...newMovies].map((m) => [m.id, m]))
-        return sourceIds
-          .map((id) => byId.get(id))
-          .filter((m): m is Movie => m !== undefined)
+        return sourceIds.map((id) => byId.get(id)).filter((m): m is Movie => m !== undefined)
       })
     })
     return () => {
@@ -384,9 +417,7 @@ export default function Home() {
   const toggleFavorite = (id: number) => {
     const isFavorited = shared.favorites.includes(id)
     shared.updateFavorites(
-      isFavorited
-        ? shared.favorites.filter((favId) => favId !== id)
-        : [...shared.favorites, id],
+      isFavorited ? shared.favorites.filter((favId) => favId !== id) : [...shared.favorites, id],
     )
   }
 
@@ -427,9 +458,7 @@ export default function Home() {
   }
 
   // --- Drag and drop (apenas favoritos) ---
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
-  )
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }))
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -502,7 +531,7 @@ export default function Home() {
       case "roulette":
         return <Trophy className="w-5 h-5 text-primary" />
       default:
-        return <Sparkles className="w-5 h-5 text-primary" suppressHydrationWarning />
+        return <Flame className="w-5 h-5 text-primary flame-flicker" suppressHydrationWarning />
     }
   }
 
@@ -522,67 +551,69 @@ export default function Home() {
         spinDuration={2}
         hideDefaultCursor={false}
         showOnTargetOnly
+        showDot={false}
         parallaxOn
         hoverDuration={0.2}
         cursorColor="#ffffff"
         cursorColorOnTarget="var(--primary)"
       />
       <div className="fixed inset-0 bg-gradient-to-br from-background via-background to-secondary/30 -z-10" />
-      {wallItems.length > 0 && (
-        <div className="fixed inset-0 -z-10 pointer-events-none" aria-hidden="true">
-          {/* Favoritos/Vistos ganham animação própria (fileiras horizontais, inclinação
-              oposta); o `key` remonta a camada e dispara o fade — troca fluida */}
-          {(currentView === "favorites" || currentView === "seen") && viewWallMovies.length >= 12 ? (
-            <div key={`rows-${currentView}`} className="absolute inset-0 bg-anim-fade">
-              <PosterRows
-                items={wallItems}
-                tileWidth={200}
-                tileHeight={300}
-                gap={40}
-                radius={12}
-                tilt={-10}
-                turn={6}
-                roll={-3}
-                perspective={1600}
-                depth={120}
-                speed={30}
-                variance={0.45}
-                fade={0.1}
-                dim={0.85}
-                overlayColor="#0f0f17"
-              />
-            </div>
-          ) : (
-            <div key="wall" className="absolute inset-0 bg-anim-fade">
-              <DriftWall
-                items={wallItems}
-                columns={8}
-                tileWidth={150}
-                tileHeight={225}
-                gap={36}
-                radius={12}
-                tilt={14}
-                turn={-12}
-                perspective={1200}
-                depth={120}
-                speed={26}
-                direction="up"
-                variance={0.45}
-                parallax={0}
-                lift={0}
-                fade={0.1}
-                dim={0.85}
-                overlayColor="#0f0f17"
-                pauseOnHover={false}
-                grayscale={false}
-                interactive={false}
-              />
-            </div>
-          )}
-          {/* vidro fosco por cima da parede de pôsteres */}
-          <div className="absolute inset-0 backdrop-blur-[6px] bg-background/55" />
-        </div>
-      )}
+      <div className="fixed inset-0 -z-10 pointer-events-none" aria-hidden="true">
+        {/* Favoritos/Vistos ganham animação própria (fileiras horizontais, inclinação
+            oposta); nunca mostram a parede da principal — enquanto a deles não está
+            pronta, fica só o gradiente. O `key` remonta a camada e dispara o fade */}
+        {isRowsView
+          ? rowsItems.length >= 12 && (
+              <div key={`rows-${currentView}`} className="absolute inset-0 bg-anim-fade">
+                <PosterRows
+                  items={rowsItems}
+                  tileWidth={200}
+                  tileHeight={300}
+                  gap={40}
+                  radius={12}
+                  tilt={-10}
+                  turn={6}
+                  roll={-3}
+                  perspective={1600}
+                  depth={120}
+                  speed={30}
+                  variance={0.45}
+                  fade={0.1}
+                  dim={0.85}
+                  overlayColor="#0f0f17"
+                />
+              </div>
+            )
+          : wallItems.length > 0 && (
+              <div key="wall" className="absolute inset-0 bg-anim-fade">
+                <DriftWall
+                  items={wallItems}
+                  columns={8}
+                  tileWidth={150}
+                  tileHeight={225}
+                  gap={36}
+                  radius={12}
+                  tilt={14}
+                  turn={-12}
+                  perspective={1200}
+                  depth={120}
+                  speed={26}
+                  direction="up"
+                  variance={0.45}
+                  parallax={0}
+                  lift={0}
+                  fade={0.1}
+                  dim={0.85}
+                  overlayColor="#0f0f17"
+                  pauseOnHover={false}
+                  grayscale={false}
+                  interactive={false}
+                />
+              </div>
+            )}
+        {/* vidro fosco por cima da parede de pôsteres */}
+        <div className="absolute inset-0 backdrop-blur-[6px] bg-background/55" />
+      </div>
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent -z-10" />
 
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -646,7 +677,13 @@ export default function Home() {
                   leaveFrom="transform opacity-100 scale-100"
                   leaveTo="transform opacity-0 scale-95"
                 >
-                  <MenuItems className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl z-20 focus:outline-none overflow-hidden">
+                  {/* modal={false}: sem travar o scroll da página. O lock faz a
+                      barra de rolagem sumir, a viewport alargar e o fundo animado
+                      recalcular o layout no meio da animação */}
+                  <MenuItems
+                    modal={false}
+                    className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-xl z-20 focus:outline-none overflow-hidden"
+                  >
                     <div className="p-2">
                       <MenuItem>
                         <button
@@ -724,7 +761,7 @@ export default function Home() {
                 ref={filterBtnRef}
                 onClick={() => setShowFilters(!showFilters)}
                 className={`p-2 rounded-lg transition-all cursor-pointer group ${
-                  showFilters || activeFilters.genreId || activeFilters.year || activeFilters.minRating
+                  showFilters || hasActiveFilters(activeFilters)
                     ? "bg-primary text-primary-foreground"
                     : "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground"
                 }`}
@@ -758,8 +795,8 @@ export default function Home() {
                         <Film className="w-3 h-3" /> Gênero
                       </label>
                       <FilterSelect
-                        value={activeFilters.genreId}
-                        onChange={(val) => setActiveFilters((prev) => ({ ...prev, genreId: val }))}
+                        value={activeFilters.genreIds}
+                        onChange={(val) => setActiveFilters((prev) => ({ ...prev, genreIds: val }))}
                         options={genreOptions}
                         icon={Film}
                         placeholder="Todos os gêneros"
@@ -770,8 +807,8 @@ export default function Home() {
                         <Calendar className="w-3 h-3" /> Ano de Lançamento
                       </label>
                       <FilterSelect
-                        value={activeFilters.year}
-                        onChange={(val) => setActiveFilters((prev) => ({ ...prev, year: val }))}
+                        value={activeFilters.years}
+                        onChange={(val) => setActiveFilters((prev) => ({ ...prev, years: val }))}
                         options={yearOptions}
                         icon={Calendar}
                         placeholder="Todos os anos"
@@ -833,7 +870,11 @@ export default function Home() {
           </div>
         ) : movies.length > 0 ? (
           <>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
               <SortableContext
                 items={movieIds}
                 strategy={rectSortingStrategy}
@@ -931,8 +972,11 @@ export default function Home() {
             <p className="text-muted-foreground max-w-sm">
               Tente ajustar seus filtros ou buscar por outro termo.
             </p>
-            {(activeFilters.genreId || activeFilters.year || activeFilters.minRating) && (
-              <button onClick={clearFilters} className="mt-4 text-primary hover:underline cursor-pointer">
+            {hasActiveFilters(activeFilters) && (
+              <button
+                onClick={clearFilters}
+                className="mt-4 text-primary hover:underline cursor-pointer"
+              >
                 Limpar Filtros
               </button>
             )}

@@ -11,6 +11,8 @@ interface TargetCursorProps {
   hoverDuration?: number
   parallaxOn?: boolean
   showOnTargetOnly?: boolean
+  /** false esconde o ponto central — útil quando o cursor nativo fica visível */
+  showDot?: boolean
   cursorColor?: string
   cursorColorOnTarget?: string
 }
@@ -57,6 +59,7 @@ const TargetCursor = ({
   hoverDuration = 0.2,
   parallaxOn = true,
   showOnTargetOnly = false,
+  showDot = true,
   cursorColor = "#ffffff",
   cursorColorOnTarget,
 }: TargetCursorProps) => {
@@ -421,7 +424,11 @@ const TargetCursor = ({
       className="target-cursor-wrapper"
       style={showOnTargetOnly ? { opacity: 0, visibility: "hidden" } : undefined}
     >
-      <div ref={dotRef} className="target-cursor-dot" style={{ backgroundColor: cursorColor }} />
+      <div
+        ref={dotRef}
+        className="target-cursor-dot"
+        style={{ backgroundColor: cursorColor, display: showDot ? undefined : "none" }}
+      />
       <div className="target-cursor-corner corner-tl" style={{ borderColor: cursorColor }} />
       <div className="target-cursor-corner corner-tr" style={{ borderColor: cursorColor }} />
       <div className="target-cursor-corner corner-br" style={{ borderColor: cursorColor }} />
