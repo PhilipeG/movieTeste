@@ -16,10 +16,13 @@ interface Props {
   isFavorite: boolean
   onClick: () => void
   ratings?: { anak?: number; silvio?: number }
+  backContent?: "details" | "ratings"
 }
 
 export function SortableMovieCard(props: Props) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.movie.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.movie.id,
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),

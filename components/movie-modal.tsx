@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useLayoutEffect, useRef } from "react"
 import Image from "next/image"
+import dynamic from "next/dynamic"
 import { getMovieImages, getMovieCertification, getMovieDetails } from "@/app/actions/tmdb"
 import type { Movie, MovieDetails, Genre, CastMember } from "@/lib/tmdb"
 import { X, Star, Clock, Calendar, Users, PlayCircle, User, ChevronLeft, ChevronRight, Heart } from "lucide-react"
@@ -14,7 +15,13 @@ interface Props {
   // NOVAS PROPS
   onToggleFavorite?: () => void
   isFavorite?: boolean
+  /** Filme sorteado na roleta: anéis de energia saindo do card */
+  celebrate?: boolean
 }
+
+// three.js só é baixado quando um sorteio abre o card
+const MagicRings = dynamic(() => import("@/components/magic-rings"), { ssr: false })
+const RING_COUNT = 6
 
 // --- COMPONENTE: Avaliação 0-10 com Precisão 0.5 ---
 function ScoreRating({ value, onChange, label }: any) {
@@ -110,7 +117,42 @@ function formatRuntime(minutes: number) {
   return `${hours}h ${mins}m`
 }
 
-export default function MovieModal({ movie, onClose, ratings, onRate, onToggleFavorite, isFavorite }: Props) {
+export default function MovieModal({
+  movie,
+  onClose,
+  ratings,
+  onRate,
+  onToggleFavorite,
+  isFavorite,
+  celebrate = false,
+}: Props) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const ringsLayerRef = useRef<HTMLDivElement>(null)
+  const [ringsGeom, setRingsGeom] = useState<{ base: number; step: number } | null>(null)
+
+  // Os anéis são círculos centrados no card, em unidades do menor lado da tela.
+  // O primeiro nasce rente à borda lateral do card e os seguintes se espalham
+  // pelo espaço livre dos lados — assim eles saem de trás do card em qualquer tela.
+  useLayoutEffect(() => {
+    if (!celebrate) return
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
+    const measure = () => {
+      const card = cardRef.current
+      const layer = ringsLayerRef.current
+      if (!card || !layer) return
+      const unit = Math.min(layer.clientWidth, layer.clientHeight)
+      const cardW = card.offsetWidth
+      const side = Math.max(0, (layer.clientWidth - cardW) / 2)
+      setRingsGeom({
+        base: (cardW / 2 / unit) * 0.96,
+        step: Math.max(0.03, side / unit / (RING_COUNT + 0.5)),
+      })
+    }
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [celebrate])
+
   const [tab, setTab] = useState<"sinopse" | "info" | "galeria">("sinopse")
   const [images, setImages] = useState<string[]>([])
   const [currentImage, setCurrentImage] = useState(0)
@@ -173,7 +215,34 @@ export default function MovieModal({ movie, onClose, ratings, onRate, onToggleFa
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative glass rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] md:h-[80vh] md:max-h-[680px] md:min-h-[480px] overflow-hidden z-10 flex flex-col md:flex-row animate-in zoom-in-95 duration-200">
+      {celebrate && (
+        <div ref={ringsLayerRef} className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          {ringsGeom && (
+            <MagicRings
+              // vermelho do tema (--primary) por dentro, laranja da chama por fora
+              color="#F14D4C"
+              colorTwo="#F97316"
+              ringCount={RING_COUNT}
+              speed={1}
+              attenuation={10}
+              lineThickness={2}
+              baseRadius={ringsGeom.base}
+              radiusStep={ringsGeom.step}
+              scaleRate={ringsGeom.step}
+              opacity={1}
+              noiseAmount={0.1}
+              ringGap={1.5}
+              fadeIn={0.7}
+              fadeOut={0.5}
+            />
+          )}
+        </div>
+      )}
+
+      <div
+        ref={cardRef}
+        className="relative glass rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] md:h-[80vh] md:max-h-[680px] md:min-h-[480px] overflow-hidden z-10 flex flex-col md:flex-row animate-in zoom-in-95 duration-200"
+      >
         
         {/* Seção da Imagem (Esquerda) */}
         <div className="relative w-full md:w-auto md:h-full aspect-[2/3] shrink-0 bg-black/50 group/image overflow-hidden">

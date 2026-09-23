@@ -77,6 +77,8 @@ export default function Home() {
   const [movies, setMovies] = useState<Movie[]>([])
   const [search, setSearch] = useState("")
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
+  // Id do filme que acabou de sair na roleta — só ele abre com os anéis
+  const [celebratedId, setCelebratedId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [genres, setGenres] = useState<Genre[]>([])
   const [currentPage, setCurrentPage] = useState(1)
@@ -622,7 +624,7 @@ export default function Home() {
             onClick={displayPopularMovies}
             className="cursor-pointer group flex items-center gap-3 mb-8 transition-transform hover:scale-105"
           >
-            <FilmReel size={56} glowColor="color-mix(in srgb, var(--primary) 45%, transparent)" />
+            <FilmReel size={76} glowColor="color-mix(in srgb, var(--primary) 45%, transparent)" />
             <StrokeText
               text="Filmenak"
               strokeColor="var(--primary)"
@@ -859,7 +861,10 @@ export default function Home() {
         {currentView === "roulette" ? (
           <Roulette
             movies={rouletteMovies}
-            onSpinEnd={(movie) => setSelectedMovie(movie)}
+            onSpinEnd={(movie) => {
+              setCelebratedId(movie.id)
+              setSelectedMovie(movie)
+            }}
             onRemoveMovie={removeFromRoulette}
           />
         ) : loading ? (
@@ -912,6 +917,7 @@ export default function Home() {
                             isFavorite={isFavorited}
                             onClick={() => setSelectedMovie(movie)}
                             ratings={shared.ratings[movie.id]}
+                            backContent="ratings"
                           />
                         )
                       return (
@@ -994,11 +1000,15 @@ export default function Home() {
         {selectedMovie && (
           <MovieModal
             movie={selectedMovie}
-            onClose={() => setSelectedMovie(null)}
+            onClose={() => {
+              setSelectedMovie(null)
+              setCelebratedId(null)
+            }}
             ratings={shared.ratings[selectedMovie.id]}
             onRate={handleRateMovie}
             onToggleFavorite={() => toggleFavorite(selectedMovie.id)}
             isFavorite={shared.favorites.includes(selectedMovie.id)}
+            celebrate={celebratedId === selectedMovie.id}
           />
         )}
       </div>
